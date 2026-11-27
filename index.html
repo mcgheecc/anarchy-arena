@@ -3422,17 +3422,29 @@ const Flow = {
     const S = this.sel;
     if (S.outT > 0) { if (++S.outT > 50) this.go(this.mode === '1p' && this.ladder.stage === 0 ? 'story' : 'vs'); return; }
     S.timer--;
-    const ports = this.mode === '2p' ? [1, 2] : [1];
-    ports.forEach((pn, i) => {
+    // 1P: player 1's controls drive the CPU cursor while picking the first opponent
+    const pairs = this.mode === '2p' ? [[1, 0], [2, 1]] : S.oppPick ? [[1, 1]] : [[1, 0]];
+    const mine = S.oppPick ? S.p[0].cur : -1;
+    pairs.forEach(([pn, i]) => {
       const P = PORTS[pn], s = S.p[i];
       if (s.done) return;
       const n = CHAR_ORDER.length;
-      if (P.hit('left') || P.hit('right')) { s.cur = (s.cur + (P.hit('left') ? n - 1 : 1)) % n; Snd.play('select'); }
-      if (P.hit('up') || P.hit('down')) { s.cur = (s.cur + 2) % n; Snd.play('select'); }
+      if (P.hit('left') || P.hit('right')) { const d = P.hit('left') ? n - 1 : 1; s.cur = (s.cur + d) % n; if (s.cur === mine) s.cur = (s.cur + d) % n; Snd.play('select'); }
+      if (P.hit('up') || P.hit('down')) { s.cur = (s.cur + 2) % n; if (s.cur === mine) s.cur = (s.cur + (P.hit('up') ? n - 1 : 1)) % n; Snd.play('select'); }
       const b = BTN.find(x => P.hit(x)) || (P.hit('start') ? 'lp' : null);
       if (b || S.timer <= 0) this.lockIn(i, b && (b === 'lk' || b === 'hk') ? 1 : 0);
     });
     if (S.timer <= 0) for (let i = 0; i < 2; i++) if (!S.p[i].done) this.lockIn(i, 0);
+    // fresh 1P run: once your fighter is locked in, choose who you fight first
+    if (this.mode === '1p' && this.ladder.stage === 0 && S.p[0].done && !S.oppPick && !S.oppDone) {
+      S.oppPick = true; S.p[1].done = false; S.p[1].pal = 0; S.timer = 15 * 60 + 59;
+      S.p[1].cur = (S.p[0].cur + 1) % CHAR_ORDER.length;
+      return;
+    }
+    if (S.oppPick && S.p[1].done) {
+      S.oppPick = false; S.oppDone = true;
+      this.ladder.first = CHAR_ORDER[S.p[1].cur]; this.ladder.list = null;
+    }
     if (S.p[0].done && S.p[1].done) {
       // 2P mirror match: force alternate colours
       if (this.mode === '2p' && S.p[0].cur === S.p[1].cur && S.p[0].pal === S.p[1].pal) S.p[1].pal = 1 - S.p[0].pal;
@@ -3449,6 +3461,7 @@ const Flow = {
     const me = CHAR_ORDER[this.sel.p[0].cur], myPal = this.sel.p[0].pal;
     if (this.ladder.list && this.ladder.me === me) return this.ladder.list;
     const rivals = CHAR_ORDER.filter(c => c !== me).sort(() => Math.random() - 0.5);
+    const fi = rivals.indexOf(this.ladder.first); if (fi > 0) rivals.unshift(rivals.splice(fi, 1)[0]);   // the opponent you picked comes first
     const list = rivals.map(c => ({ ch: c, pal: 0 }));
     list.push({ ch: me, pal: 1 - myPal });
     list.push({ ch: pick(rivals), pal: 1, boss: true });
@@ -3585,10 +3598,10 @@ const Flow = {
     if (s === 'moves') { this.go(this.movesBack || 'mode'); if (this.movesBack === 'fight') this.state = 'fight'; return; }
     if (s === 'select') {
       const S = this.sel, i = S.p[0].done ? 1 : 0;
-      if (this.mode === '1p' && i === 1) return;
+      if (this.mode === '1p' && i === 1 && !S.oppPick) return;
       const cardX = i === 0 ? 6 : VW - 136;
       if (x >= cardX && x <= cardX + 130 && y >= 36 && y <= 148) { this.lockIn(i, 1); return; }
-      for (let k = 0; k < CHAR_ORDER.length; k++) { const T = this.selTile(k); if (x >= T.x && x <= T.x + T.w && y >= T.y && y <= T.y + T.h) { if (S.p[i].cur !== k) { S.p[i].cur = k; Snd.play('select'); } else this.lockIn(i, 0); } }
+      for (let k = 0; k < CHAR_ORDER.length; k++) { const T = this.selTile(k); if (S.oppPick && k === S.p[0].cur) continue; if (x >= T.x && x <= T.x + T.w && y >= T.y && y <= T.y + T.h) { if (S.p[i].cur !== k) { S.p[i].cur = k; Snd.play('select'); } else this.lockIn(i, 0); } }
       return;
     }
     if (s === 'story') { const txt = this.page === 0 ? STORY.premise : STORY.intro[CHAR_ORDER[this.sel.p[0].cur]]; if (!storyDone(txt, this.pageT - 20)) this.pageT = 999; else this.storyNext(); return; }
@@ -3719,7 +3732,8 @@ const Flow = {
     this.bg('#100830', '#300a20');
     c.fillStyle = 'rgba(255,255,255,.04)';
     for (let y = -20; y < VH; y += 20) for (let x = -20; x < VW + 20; x += 20) { const o = (this.t * 0.4) % 20; c.beginPath(); c.moveTo(x + o, y + 10); c.lineTo(x + 10 + o, y); c.lineTo(x + 20 + o, y + 10); c.lineTo(x + 10 + o, y + 20); c.fill(); }
-    text('PLAYER SELECT', VW / 2, 8, { scale: 3, pal: 'gold', align: 'center', italic: true });
+    const head = S.oppPick ? 'CHOOSE OPPONENT' : 'PLAYER SELECT';
+    text(head, VW / 2, 8, { scale: textWidth(head, 3) > VW - 16 ? 2 : 3, pal: 'gold', align: 'center', italic: true });
     const secs = Math.max(0, Math.floor(S.timer / 60));
     text(String(secs).padStart(2, '0'), VW / 2, 31, { scale: 1, pal: secs < 5 ? 'plainRed' : 'plainWhite', align: 'center' });
     const BG = { red: ['#601020', '#200810'], blue: ['#102060', '#081020'], pink: ['#5a1050', '#200818'], gold: ['#5a3a10', '#200c08'] };
@@ -3736,6 +3750,7 @@ const Flow = {
       text(lbl, pi === 0 ? T.x + 2 : T.x + T.w - 2, T.y + 2, { pal: pi === 0 ? 'plainRed' : 'plainCyan', align: pi === 0 ? 'left' : 'right' });
     };
     if (this.mode === '2p') cursor(1, '#3080ff', '2P');
+    else if (S.oppPick || S.oppDone) cursor(1, '#3080ff', 'CPU');
     cursor(0, '#ff3030', '1P');
     // big preview cards
     const card = (pi, side) => {
@@ -3750,7 +3765,7 @@ const Flow = {
       });
     };
     card(0, 0);
-    if (this.mode === '2p') card(1, 1);
+    if (this.mode === '2p' || S.oppPick || S.oppDone) card(1, 1);
     else {
       const x = VW - 6 - 130, y = 36;
       c.fillStyle = '#100818'; c.fillRect(x, y, 130, 112); c.strokeStyle = '#3080ff'; c.strokeRect(x + 0.5, y + 0.5, 129, 111);
@@ -3758,7 +3773,8 @@ const Flow = {
       text('CHALLENGER', x + 65, y + 118, { scale: 1, pal: 'plainCyan', align: 'center' });
       text('STAGE ' + (this.ladder.stage + 1), VW / 2, 158, { pal: 'plainYellow', align: 'center' });
     }
-    text(usingTouch ? 'TAP FACE TWICE = COLOR A   TAP CARD = COLOR B' : 'PUNCH = COLOR A   KICK = COLOR B', VW / 2, 212, { pal: 'plainGrey', align: 'center' });
+    if (S.oppPick) text(usingTouch ? 'TAP A FACE TWICE TO PICK YOUR FIRST FIGHT' : 'PICK WHO YOU FIGHT FIRST', VW / 2, 212, { pal: 'plainYellow', align: 'center' });
+    else text(usingTouch ? 'TAP FACE TWICE = COLOR A   TAP CARD = COLOR B' : 'PUNCH = COLOR A   KICK = COLOR B', VW / 2, 212, { pal: 'plainGrey', align: 'center' });
   },
   drawVS() {
     const c = ctx, S = this.sel, t = this.t;
@@ -4099,8 +4115,17 @@ function initGL() {
 }
 
 let viewRect = { x: 0, y: 0, w: VW, h: VH };
+// the real box the game lives in. iOS home-screen apps can report a stale innerWidth/innerHeight
+// (e.g. still portrait after rotating), so measure the fixed full-screen container itself.
+const VP = { w: 0, h: 0 };
+function measureVP() {
+  const r = document.getElementById('cab').getBoundingClientRect();
+  VP.w = Math.round(r.width) || window.innerWidth; VP.h = Math.round(r.height) || window.innerHeight;
+  return VP;
+}
 function resize() {
-  const ww = window.innerWidth, wh = window.innerHeight;
+  measureVP();
+  const ww = VP.w, wh = VP.h;
   const ar = VW / VH;
   let w = ww, h = ww / ar;
   if (h > wh) { h = wh; w = wh * ar; }
@@ -4108,8 +4133,9 @@ function resize() {
   screenCv.style.width = w + 'px'; screenCv.style.height = h + 'px';
   const dpr = Math.min(window.devicePixelRatio || 1, 3, 2800 / w);
   screenCv.width = Math.round(w * dpr); screenCv.height = Math.round(h * dpr);
+  // map taps using where the picture actually ended up on screen
   const r = screenCv.getBoundingClientRect();
-  viewRect = { x: (ww - w) / 2, y: (wh - h) / 2, w, h };
+  viewRect = r.width > 0 ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: (ww - w) / 2, y: (wh - h) / 2, w, h };
   touchCv.width = Math.round(ww * dpr); touchCv.height = Math.round(wh * dpr);
   touchCv.style.width = ww + 'px'; touchCv.style.height = wh + 'px';
   if (GL) GL.viewport(0, 0, screenCv.width, screenCv.height);
@@ -4152,7 +4178,7 @@ function syncButtons() {
 // ---------------- touch controls ----------------
 const TC = { stick: null, stickPid: null, btnPids: new Map(), layout: null };
 function touchLayout() {
-  const ww = window.innerWidth, wh = window.innerHeight;
+  const ww = VP.w || window.innerWidth, wh = VP.h || window.innerHeight;
   const r = Math.max(24, Math.min(38, wh * 0.08));
   const right = ww - Math.max(10, ww * 0.02) - r * 1.1, bottom = wh - r * 1.25 - 26;
   const gx = r * 2.35, gy = r * 2.55;
@@ -4197,7 +4223,7 @@ touchCv.addEventListener('pointerdown', e => {
   try { touchCv.setPointerCapture(e.pointerId); } catch (er) { }
   const b = btnAt(x, y);
   if (b) { TC.btnPids.set(e.pointerId, b.id); syncTouch(); return; }
-  if (x < window.innerWidth * 0.5) { TC.stick = { pid: e.pointerId, ox: x, oy: y, dx: 0, dy: 0 }; syncTouch(); }
+  if (x < VP.w * 0.5) { TC.stick = { pid: e.pointerId, ox: x, oy: y, dx: 0, dy: 0 }; syncTouch(); }
 }, { passive: false });
 touchCv.addEventListener('pointermove', e => {
   if (TC.stick && TC.stick.pid === e.pointerId) {
@@ -4328,7 +4354,7 @@ function drawStartButton(c, B, label, lit) {
   panelText(c, label, cx, cy + s / 2 + 8, 11);
 }
 function drawTouch() {
-  const dpr = touchCv.width / window.innerWidth;
+  const dpr = touchCv.width / (VP.w || window.innerWidth);
   tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.clearRect(0, 0, touchCv.width, touchCv.height);
   if (!usingTouch) return;
   tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -4393,7 +4419,14 @@ if (IS_STANDALONE) document.getElementById('bFs').style.display = 'none';
 // iOS only grants audio on the finger LIFTING, not on touch-down
 for (const ev of ['touchend', 'pointerup', 'click']) document.addEventListener(ev, () => Snd.unlock(), { capture: true, passive: true });
 document.addEventListener('visibilitychange', () => { if (document.hidden && Flow.state === 'fight' && Game.mode !== 'demo' && !Flow.paused) Flow.paused = true; lastT = performance.now(); acc = 0; });
-window.addEventListener('resize', () => { resize(); TC.layout = touchLayout(); });
+function relayout() { resize(); TC.layout = touchLayout(); }
+window.addEventListener('resize', relayout);
+// iOS settles the new size some time after rotating: check again a few times
+window.addEventListener('orientationchange', () => { for (const t of [100, 300, 700, 1200]) setTimeout(relayout, t); });
+if (window.visualViewport) visualViewport.addEventListener('resize', relayout);
+window.addEventListener('pageshow', relayout);
+// safety net: if the container size ever changes without an event, fix the layout within half a second
+setInterval(() => { const w = VP.w, h = VP.h; measureVP(); if (w !== VP.w || h !== VP.h) relayout(); }, 500);
 document.addEventListener('fullscreenchange', () => { syncButtons(); });
 document.addEventListener('webkitfullscreenchange', () => { syncButtons(); });
 if (matchMedia('(pointer:coarse)').matches) { usingTouch = true; touchCv.classList.add('on'); }
