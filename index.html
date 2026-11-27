@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>ANARCHY ARENA II — Championship Edition</title>
+<title>ANARCHY ARENA</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
@@ -17,28 +17,39 @@ body{font-family:monospace;color:#fff}
 #screen.crt{border-radius:2.2%/3.6%;box-shadow:0 0 0 2px #050308,0 0 26px 4px rgba(120,90,255,.18),0 0 80px rgba(255,90,40,.08)}
 #touch{position:fixed;inset:0;z-index:4;display:none}
 #touch.on{display:block}
-#bar{position:fixed;bottom:max(4px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:6;display:flex;gap:6px;opacity:.45;transition:opacity .2s}
-#bar:hover{opacity:1}
-#bar button{background:#1a0f26e6;color:#ffd44a;border:1px solid #ffb02e;border-radius:4px;font:bold 10px monospace;padding:4px 7px;cursor:pointer;touch-action:manipulation;letter-spacing:.5px}
-#bar button.off{color:#887;border-color:#554}
+#bar{position:fixed;z-index:6;display:flex;gap:5px;padding:5px 6px;border-radius:5px;background:linear-gradient(#34323a,#18171c);border:1px solid #000;box-shadow:inset 0 1px 0 #55525c,0 2px 6px rgba(0,0,0,.7);transition:opacity .2s}
+#bar.below{left:50%;transform:translateX(-50%);bottom:max(6px,env(safe-area-inset-bottom))}
+#bar.over{left:50%;transform:translateX(-50%);bottom:max(4px,env(safe-area-inset-bottom));opacity:.35}
+#bar.over:hover{opacity:1}
+#bar.side{flex-direction:column;top:max(8px,env(safe-area-inset-top));right:var(--sideX,8px)}
+#bar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:50px;padding:4px 5px 3px;border-radius:3px;border:1px solid #000;background:linear-gradient(#3c3a44,#1a191f 55%,#121115);box-shadow:inset 0 1px 0 #6a6672,0 2px 0 #000;color:#e6e2d8;font:800 9px/1 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;letter-spacing:.6px;cursor:pointer;touch-action:manipulation}
+#bar button:active{transform:translateY(1px);box-shadow:inset 0 1px 0 #6a6672,0 1px 0 #000}
+#bar button i{display:block;width:18px;height:7px;border-radius:2px;background:linear-gradient(#4a1010,#260606);box-shadow:inset 0 1px 2px #000,0 0 0 1px #000}
+#bar button.on i{background:radial-gradient(ellipse at 50% 40%,#f4ffe8,#58f070 45%,#109030);box-shadow:0 0 0 1px #000,0 0 7px #40ff70}
+#bar button em{font:700 7px/1 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-style:normal;color:#9a96a0;letter-spacing:.4px}
+#bar button.on em{color:#c8f4c0}
+#boot{position:fixed;inset:0;z-index:8;background:#000;color:#ffd44a;display:flex;flex-direction:column;align-items:center;justify-content:center;font:bold 22px monospace;letter-spacing:3px;animation:bl 1s steps(2) infinite}
+#boot span{font-size:12px;color:#ccc;margin-top:10px;letter-spacing:2px}
+@keyframes bl{50%{opacity:.25}}
 #rotate{display:none;position:fixed;inset:0;z-index:9;background:#000;color:#ffd44a;align-items:center;justify-content:center;text-align:center;font:bold 18px monospace;padding:30px;line-height:1.6}
 @media (orientation:portrait) and (pointer:coarse){#rotate{display:flex}}
 </style>
 </head>
 <body>
+<div id="boot">NOW LOADING<span>PLEASE WAIT</span></div>
 <div id="cab"><canvas id="screen" width="1152" height="672" class="crt"></canvas></div>
 <canvas id="touch"></canvas>
-<div id="bar">
- <button id="bCrt" type="button" title="Toggle CRT curvature (F2)">CRT</button>
- <button id="bScan" type="button" title="Toggle scanlines (F4)">SCANLINES</button>
- <button id="bSnd" type="button" title="Toggle sound (F3)">SOUND</button>
- <button id="bFs" type="button" title="Fullscreen (F11)">FULL</button>
+<div id="bar" class="below">
+ <button id="bCrt" type="button" title="CRT curvature (F2)"><i></i>CRT<em>ON</em></button>
+ <button id="bScan" type="button" title="Scanlines (F4)"><i></i>SCAN<em>MAX</em></button>
+ <button id="bSnd" type="button" title="Sound (F3)"><i></i>SOUND<em>ON</em></button>
+ <button id="bFs" type="button" title="Fullscreen (F11)"><i></i>FULL<em>SCREEN</em></button>
 </div>
-<div id="rotate">&#8635; ROTATE TO LANDSCAPE<br><span style="font-size:13px;color:#ccc">Anarchy Arena II plays sideways, like a real cabinet.</span></div>
+<div id="rotate">&#8635; ROTATE TO LANDSCAPE<br><span style="font-size:13px;color:#ccc">Anarchy Arena plays sideways, like a real cabinet.</span></div>
 <script>
 'use strict';
 /* =====================================================================
-   ANARCHY ARENA II — Championship Edition
+   ANARCHY ARENA
    A self-contained CPS-1 style fighting game. No external assets:
    all art is procedural canvas drawing, all sound is Web Audio synthesis.
    ===================================================================== */
@@ -83,7 +94,7 @@ function shade(hex, f) { // f<1 darker, f>1 lighter
 function rgba(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
 
 // ---------- Persistent options ----------
-const OPT = { crt: true, scan: true, scanLv: 0, sound: true, difficulty: 1 /*0 easy,1 normal,2 hard*/, hiScore: 0 };
+const OPT = { crt: true, scan: true, scanLv: 0, sound: true, difficulty: 1 /*0 easy,1 normal,2 hard*/, hiScore: 0, vibe: true };
 try {
   const s = JSON.parse(localStorage.getItem('aa2-options') || 'null');
   if (s && typeof s === 'object') Object.assign(OPT, s);
@@ -107,6 +118,12 @@ const BTN = ['lp', 'hp', 'lk', 'hk'];
 const PAD_FIELDS = ['up', 'down', 'left', 'right', 'lp', 'hp', 'lk', 'hk', 'start', 'coin'];
 const TOUCH = { up: 0, down: 0, left: 0, right: 0, lp: 0, hp: 0, lk: 0, hk: 0, start: 0, coin: 0 };
 let usingTouch = false;
+// rumble on phones: only for hits that involve a human player on a touch screen
+function buzz(f, ms) {
+  if (!usingTouch || !OPT.vibe || !navigator.vibrate) return;
+  if (f && (!f.ctrl || f.ctrl.type !== 'human')) return;
+  try { navigator.vibrate(ms); } catch (e) { }
+}
 let anyInputThisFrame = false;
 
 window.addEventListener('keydown', e => {
@@ -1299,6 +1316,7 @@ const FX = {
       if (p.vx !== undefined) { p.x += p.vx; p.y += p.vy; if (p.g) p.vy += p.g; }
       if (p.type === 'dust') { p.vx *= 0.92; p.r += 0.18; }
       if (p.type === 'bit' && p.y > FLOOR) { p.y = FLOOR; p.vy *= -0.4; p.vx *= 0.7; }
+      if (p.type === 'chunk') { p.rot += p.vr; if (p.y > FLOOR - 1) { p.y = FLOOR - 1; p.vy *= -0.35; p.vx *= 0.6; p.vr *= 0.5; } }
     }
     this.list = this.list.filter(p => p.t < p.life);
   },
@@ -1332,6 +1350,7 @@ const FX = {
           c.fillStyle = '#fff'; for (let i = -2; i <= 2; i++) c.fillRect(r * 0.55 - 1 + Math.abs(i) * -1.5, i * r * 0.32 - 1, 2, 2);
           c.restore(); c.globalAlpha = 1; break;
         }
+        case 'chunk': c.save(); c.translate(Math.round(p.x), Math.round(p.y)); c.rotate(p.rot); c.globalAlpha = k > 0.8 ? (1 - k) * 5 : 1; c.fillStyle = '#1a0a14'; c.fillRect(-p.w / 2 - 1, -p.h / 2 - 1, p.w + 2, p.h + 2); c.fillStyle = p.col; c.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); c.restore(); c.globalAlpha = 1; break;
         case 'bit': c.fillStyle = p.col; c.globalAlpha = 1 - k * k; c.fillRect(p.x - 1, p.y - 1, 2, 2); c.globalAlpha = 1; break;
         case 'dust': c.globalAlpha = (1 - k) * 0.7; c.fillStyle = '#d6c4ae'; c.beginPath(); c.arc(p.x, p.y, p.r, 0, TAU); c.fill(); c.fillStyle = '#fff2e0'; c.beginPath(); c.arc(p.x - p.r * 0.3, p.y - p.r * 0.3, p.r * 0.45, 0, TAU); c.fill(); c.globalAlpha = 1; break;
         case 'ring': {
@@ -1468,7 +1487,7 @@ class Fighter {
     return this.chargeD >= CHARGE_T || TICK - this.fullDAt <= grace;
   }
   motion(code, extra = 0) {
-    const seq = MOTIONS[code], win = MOTION_WIN[code] + extra, h = this.hist;
+    const seq = MOTIONS[code], win = MOTION_WIN[code] + extra + (usingTouch && this.ctrl.type === 'human' ? 6 : 0), h = this.hist;   // thumbs are slower than a stick
     let i = h.length - 1, idx = seq.length - 1;
     const stop = Math.max(0, h.length - win);
     // final direction must be fresh (within 6 frames)
@@ -1787,6 +1806,7 @@ class Fighter {
     if (t === releaseT) {
       const dmg = Math.round(this.ch.throwMove.dmg * v.st.def);
       v.hp = Math.max(0, v.hp - dmg); v.hpDelay = 40; v.stun += this.ch.throwMove.stun; v.stunClock = 0;
+      buzz(v.ctrl.type === 'human' ? v : this, 45);
       if (v.stun >= v.st.stunMax && v.stunImmune <= 0) v.pendingDizzy = true;
       v.state = 'airhit'; v.sf = 0; v.throwRot = 0;
       if (back) { v.x = clamp(this.x - f * 30, 14, WORLD_W - 14); v.vx = -f * 2.2; v.vy = 1.5; v.y = FLOOR - 26; v.face = f; }
@@ -2050,9 +2070,10 @@ const Game = {
   newRound() {
     const [a, b] = this.f;
     a.resetRound(WORLD_W / 2 - 72); b.resetRound(WORLD_W / 2 + 72);
+    if (this.mode === 'bonus') a.x = WORLD_W / 2 - 90;
     a.introPose = this.round === 1 ? 1 : 0; b.introPose = a.introPose;
     this.projs.length = 0; FX.clear();
-    this.cam.x = (WORLD_W - VW) / 2; this.timer = 99; this.timerSub = 0;
+    this.cam.x = (WORLD_W - VW) / 2; this.timer = this.mode === 'bonus' ? BONUS_TIME : 99; this.timerSub = 0; this.bonus = null;
     this.phase = 'intro'; this.phaseT = 0; this.banner = null; this.roundWinner = -1; this.perfect = false; this.timeOver = false;
     this.superFreeze = 0; this.slow = 0; this.koFlash = 0;
     Music.play('stage'); Music.setUrgent(false);
@@ -2092,7 +2113,8 @@ const Game = {
     this.phaseT++;
     switch (this.phase) {
       case 'intro':
-        if (this.phaseT === 30) { this.showBanner(this.isFinal() ? 'FINAL ROUND' : 'ROUND ' + this.round, 'gold', 70, 4); if (!Voice.say(this.isFinal() ? 'final_round' : 'round_' + Math.min(3, this.round))) Snd.play('round'); }
+        if (this.phaseT === 30 && this.mode === 'bonus') { this.showBanner('BONUS STAGE', 'gold', 70, 4); Snd.play('round'); }
+        else if (this.phaseT === 30) { this.showBanner(this.isFinal() ? 'FINAL ROUND' : 'ROUND ' + this.round, 'gold', 70, 4); if (!Voice.say(this.isFinal() ? 'final_round' : 'round_' + Math.min(3, this.round))) Snd.play('round'); }
         if (this.phaseT === 105) { this.showBanner('FIGHT!', 'red', 46, 7); if (Voice.say('fight')) Snd.play('fight', 0.35); else Snd.play('fight'); this.cheer(1); }
         if (this.phaseT === 112) { for (const f of this.f) { f.state = 'idle'; f.sf = 0; } this.phase = 'fight'; this.phaseT = 0; }
         break;
@@ -2143,6 +2165,13 @@ const Game = {
     const skip = s => s === 'thrown' || s === 'throw' || s === 'down';
     if (skip(a.state) || skip(b.state)) return;
     if (Math.abs(a.y - b.y) > 46) return;
+    if (a.isCar || b.isCar) {
+      const car = a.isCar ? a : b, p = car === a ? b : a;
+      if (p.y < FLOOR - 64 || car.hp <= 0) return;               // jumping over the roof
+      const d = p.x - car.x, o = car.st.pushW + p.st.pushW - Math.abs(d);
+      if (o > 0) p.x += (d === 0 ? -1 : Math.sign(d)) * o;
+      return;
+    }
     const minD = a.st.pushW + b.st.pushW, dx = b.x - a.x, ov = minD - Math.abs(dx);
     if (ov <= 0) return;
     const s = Math.abs(dx) < 0.5 ? (a.face > 0 ? 1 : -1) : Math.sign(dx);
@@ -2183,7 +2212,7 @@ const Game = {
       const st = Math.max(5, (m.stop || 7) - 3);
       def.hitstop = st; if (!proj) att.hitstop = st;
       att.addMeter((m.dmg || 4) * 0.45); def.addMeter(2);
-      FX.spark(ix, iy, m.spark || 1, dirX, 'block'); Snd.play('block');
+      FX.spark(ix, iy, m.spark || 1, dirX, 'block'); Snd.play('block'); buzz(def, 8);
       this.shakeIt(dirX, 1, 4);
       if (def.hp <= 0) { this.onKO(def, att); def.state = 'airhit'; def.vx = dirX * 2.4; def.vy = -5; }
       return true;
@@ -2204,6 +2233,7 @@ const Game = {
     if (wasDizzy) { def.stun = 0; def.stunImmune = 300; def.pendingDizzy = false; }
     else { def.stun += m.stun || 3; if (def.stun >= def.st.stunMax && def.stunImmune <= 0) def.pendingDizzy = true; }
     const stop = m.stop || 7;
+    if (def.ctrl.type === 'human') buzz(def, Math.round(stop * 4.5)); else buzz(att, Math.round(stop * 2.6));
     def.hitstop = stop; if (!proj) att.hitstop = stop;
     def.flash = 4; def.mv = null; def.sf = 0; def.trail.length = 0;
     const airborne = def.y < FLOOR - 1 || def.state === 'air' || def.state === 'airhit' || (def.state === 'attack' && def.mvAir);
@@ -2285,6 +2315,8 @@ const Game = {
 
   isFinal() { const [a, b] = this.f; return a.wins === 1 && b.wins === 1; },
   onKO(def, att) {
+    if (this.mode === 'bonus') { if (this.phase === 'fight') this.bonusKO(); return; }
+    for (const f of this.f) if (f.ctrl.type === 'human') { buzz(f, [90, 60, 180]); break; }
     if (this.phase !== 'fight') return;
     this.phase = 'ko'; this.phaseT = 0; this.slow = 96; this.koFlash = 10;
     this.roundWinner = this.f.indexOf(att);
@@ -2293,6 +2325,7 @@ const Game = {
     this.perfect = att.hp >= att.st.hp;
   },
   onTimeOver() {
+    if (this.mode === 'bonus') { if (this.phase === 'fight') this.bonusTimeOver(); return; }
     if (this.phase !== 'fight') return;
     const [a, b] = this.f;
     this.phase = 'ko'; this.phaseT = 0; this.timeOver = true;
@@ -2302,6 +2335,7 @@ const Game = {
     for (const f of this.f) if (f.state !== 'airhit' && f.state !== 'down') { f.state = 'idle'; f.mv = null; }
   },
   roundFlow() {
+    if (this.mode === 'bonus') return this.bonusFlow();
     const [a, b] = this.f;
     if (this.phase === 'fight' && a.hp <= 0 && b.hp <= 0) { this.roundWinner = -1; }
     if (this.phase === 'ko') {
@@ -2348,6 +2382,177 @@ const Game = {
   }
 };
 function overlap(a, b) { return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0; }
+
+// ---------- Bonus stage: SMASH THE CAR ----------
+// The car is a stationary "fighter" with a big hurtbox, so every move, combo and special works on it.
+CHARS.car = {
+  id: 'car', name: 'CAR', full: 'CAR', from: '', ai: null, bars: [0, 0, 0], color: 'red', quote: [''],
+  stats: { walkF: 0, walkB: 0, jumpV: 0, jumpVx: 0, grav: 0.32, dashV: 0, dashT: 1, bdashV: 0, bdashT: 1, hp: 250, stunMax: 1e9, def: 1, pushW: 70, height: 66, flip: false },
+  hurt: { stand: [-75, -66, 150, 66], crouch: [-75, -66, 150, 66], air: [-75, -66, 150, 66] },
+  palettes: [{ proj: ['#ffffff', '#ffd060', '#ff6020', '#a01010'] }],
+  moves: {}, specials: {}, commands: [], throwMove: { name: '', dmg: 0, stun: 0, range: 0 }
+};
+const BONUS_TIME = 50, CAR_K = 1.45;
+
+// ---- pixel-art car, drawn at native resolution; stage 0 = mint, 5 = wrecked ----
+const carSprites = {};
+function carSprite(stage) {
+  if (carSprites[stage]) return carSprites[stage];
+  const K = CAR_K, W = 184, H = 90, OX = 92, OY = 87, ox = 0, oy = 0;
+  const cv = mkCanvas(W, H), c = cv.getContext('2d');
+  c.setTransform(K, 0, 0, K, OX, OY);
+  const R = (x, y, w, h, col) => { c.fillStyle = col; c.fillRect(ox + x, oy + y, w, h); };
+  const P = (pts, col) => { c.fillStyle = col; c.beginPath(); c.moveTo(ox + pts[0], oy + pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(ox + pts[i], oy + pts[i + 1]); c.closePath(); c.fill(); };
+  const OL = '#1a0a14', B = '#c42a2c', BH = '#f05a48', BS = '#7a1420', CH = '#d8d8e4', CHS = '#7c7c8c', GL = '#4a7ab0', GH = '#a8d4f4', IN = '#2a1820';
+  const sag = stage >= 4 ? 3 : 0, flat = stage >= 4, roof = stage >= 4 ? 5 : stage >= 3 ? 2 : 0;
+  // tyres
+  for (const wx of [-36, 36]) {
+    const ry = flat ? 7 : 9;
+    c.fillStyle = OL; c.beginPath(); c.ellipse(ox + wx, oy - ry, 10, ry + 1, 0, 0, TAU); c.fill();
+    c.fillStyle = '#16121a'; c.beginPath(); c.ellipse(ox + wx, oy - ry, 9, ry, 0, 0, TAU); c.fill();
+    if (stage < 3) { c.fillStyle = '#9a9aac'; c.beginPath(); c.arc(ox + wx, oy - ry, 5, 0, TAU); c.fill(); R(wx - 1, -ry - 1, 3, 3, '#e8e8f4'); }
+    else { c.fillStyle = '#4a4650'; c.beginPath(); c.arc(ox + wx, oy - ry, 4, 0, TAU); c.fill(); }
+  }
+  const y0 = -8 - sag;          // sill
+  // lower body with wheel arches
+  P([-58, y0, 58, y0, 58, y0 - 16, 30, y0 - 18, -30, y0 - 18, -58, y0 - 15], OL);
+  P([-57, y0 - 1, 57, y0 - 1, 57, y0 - 15, 30, y0 - 17, -30, y0 - 17, -57, y0 - 14], B);
+  R(-57, y0 - 15, 114, 2, BH);               // shoulder highlight
+  R(-57, y0 - 4, 114, 3, BS);                // rocker shadow
+  for (const wx of [-36, 36]) { c.fillStyle = OL; c.beginPath(); c.arc(ox + wx, oy + y0 + 1, 12, Math.PI, TAU); c.fill(); }
+  // chrome side trim, bumpers, lights
+  R(-55, y0 - 9, 110, 1, CH); R(-55, y0 - 8, 110, 1, CHS);
+  if (stage < 2) R(54, y0 - 6, 6, 4, CH); else P([54, y0 - 4, 60, y0 - 2, 59, y0 + 2, 53, y0], CHS);   // front bumper (hangs off when damaged)
+  R(-60, y0 - 6, 6, 4, CH);
+  R(53, y0 - 14, 4, 4, stage < 2 ? '#fff2b0' : '#2a2a30');   // headlight
+  R(-57, y0 - 14, 3, 4, '#ff2a2a');                          // tail light
+  // cabin
+  const rY = y0 - 34 + roof, cb = y0 - 17;
+  P([-34, cb, 30, cb, 20, rY, -24, rY], OL);
+  P([-33, cb, 29, cb, 19, rY + 1, -23, rY + 1], B);
+  if (roof) P([-10, rY, 6, rY, 4, rY + roof + 1, -8, rY + roof + 1], BS);
+  R(-23, rY + 1, 42, 1, BH);
+  // windows
+  const glass = (pts, broken) => {
+    P(pts, broken ? IN : GL);
+    if (!broken) { c.fillStyle = GH; c.fillRect(ox + pts[6] + 2, oy + pts[7] + 1, 3, 1); c.fillRect(ox + pts[6] + 1, oy + pts[7] + 2, 1, 4); }
+    else { c.fillStyle = GH; for (let i = 0; i < 5; i++) c.fillRect(ox + pts[0] + 2 + i * 4, oy + pts[1] - 1 - (i % 2) * 2, 1, 1 + (i % 3)); }
+  };
+  glass([-30, cb - 1, -3, cb - 1, -3, rY + 3, -21, rY + 3], stage >= 2);
+  glass([1, cb - 1, 26, cb - 1, 17, rY + 3, 1, rY + 3], stage >= 4);
+  R(-3, rY + 2, 4, cb - rY - 2, OL);    // B pillar
+  if (stage >= 1 && stage < 4) { c.strokeStyle = '#e8f6ff'; c.lineWidth = 1; c.beginPath(); c.moveTo(ox + 14, oy + rY + 4); c.lineTo(ox + 9, oy + cb - 6); c.lineTo(ox + 12, oy + cb - 2); c.moveTo(ox + 9, oy + cb - 6); c.lineTo(ox + 5, oy + cb - 4); c.stroke(); }
+  // door lines + handles
+  R(-3, cb, 1, 14, BS); R(28, cb, 1, 14, BS);
+  if (stage < 3) { R(20, cb + 3, 4, 1, CH); R(-12, cb + 3, 4, 1, CH); }
+  else { P([0, cb, 27, cb, 27, cb + 14, 0, cb + 14], IN); R(4, cb + 2, 12, 6, '#5a2a2a'); R(4, cb + 8, 18, 3, '#3a1a1a'); }   // front door ripped off: seats visible
+  // hood + trunk lines
+  if (stage >= 3) P([30, cb, 56, cb + 1, 52, cb - 6, 34, cb - 4], BS); else R(30, cb, 26, 1, BS);   // buckled hood
+  R(-56, cb + 1, 22, 1, BS);
+  // dents & scrapes
+  const dent = (x, y, w, h) => { R(x, y, w, h, BS); R(x, y, w, 1, '#4a0a12'); R(x + 1, y + h, w - 1, 1, BH); };
+  if (stage >= 1) { dent(-46, y0 - 13, 7, 4); dent(36, y0 - 12, 6, 3); }
+  if (stage >= 2) { dent(-20, y0 - 12, 9, 5); dent(8, y0 - 6, 6, 3); for (let i = 0; i < 6; i++) R(-50 + i * 3, y0 - 7 + (i % 2), 2, 1, '#e0a090'); }
+  if (stage >= 4) { dent(-38, y0 - 14, 12, 6); dent(40, y0 - 14, 10, 5); R(-30, y0 - 13, 20, 2, '#3a1418'); }
+  if (stage >= 5) { c.globalCompositeOperation = 'source-atop'; c.globalAlpha = 0.45; c.fillStyle = '#100808'; c.fillRect(ox - 62, oy + rY - 2, 124, -rY + 4); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
+  // harden anti-aliased edges back into crisp pixels
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  const id = c.getImageData(0, 0, W, H), d = id.data;
+  for (let i = 3; i < d.length; i += 4) d[i] = d[i] > 110 ? 255 : 0;
+  c.putImageData(id, 0, 0);
+  return (carSprites[stage] = { cv, ox: OX, oy: OY });
+}
+
+class CarTarget extends Fighter {
+  constructor() {
+    super(1, 'car', 0, { type: 'car' });
+    this.isCar = true; this.throwInv = 1e9; this.smoke = []; this.shakeT = 0; this.lastStage = 0;
+  }
+  resetRound() {
+    super.resetRound(WORLD_W / 2 + 50);
+    this.x = WORLD_W / 2 + 50; this.face = -1; this.throwInv = 1e9; this.smoke = []; this.shakeT = 0; this.lastStage = 0;
+  }
+  readInput() { this.inp = { dir: 5, held: {}, press: {} }; }
+  damageStage() { const k = this.hp / this.st.hp; return this.hp <= 0 ? 5 : k > 0.8 ? 0 : k > 0.6 ? 1 : k > 0.4 ? 2 : k > 0.2 ? 3 : 4; }
+  update() {
+    this.x = WORLD_W / 2 + 50; this.y = FLOOR; this.vx = this.vy = 0; this.stun = 0; this.juggles = 0; this.pendingDizzy = false;
+    if (this.flash > 0) this.flash--;
+    if (this.state === 'airhit' || this.state === 'down') { this.state = 'hitstun'; this.hsT = 10; this.hsTotal = 10; }
+    if (this.hitstop > 0) { this.hitstop--; this.shakeT = Math.max(this.shakeT, 2); }
+    else if (this.state === 'hitstun' && --this.hsT <= 0) this.state = 'idle';
+    else if (this.state === 'blockstun') this.state = 'idle';
+    if (this.state === 'intro' && Game.phase === 'fight') this.state = 'idle';
+    // the car doesn't budge: the attacker bounces off instead
+    if (Math.abs(this.pushV) > 0.05) { const o = this.opp; o.pushV = Math.max(o.pushV, this.pushV * 0.9); o.pushSrc = null; this.pushV = 0; }
+    if (this.shakeT > 0) this.shakeT--;
+    // pieces fly off as the car takes damage
+    const st = this.damageStage();
+    if (st > this.lastStage) {
+      for (let s = this.lastStage + 1; s <= st; s++) this.breakApart(s);
+      this.lastStage = st;
+    }
+    // smoke once it's badly damaged, fire when wrecked
+    if (st >= 3 && TICK % (st >= 5 ? 3 : st >= 4 ? 6 : 12) === 0) this.smoke.push({ x: this.x + 58 + rnd(-8, 8), y: this.y - 40, r: 2, t: 0, vx: rnd(-0.1, 0.25), fire: st >= 5 && Math.random() < 0.5 });
+    for (const s of this.smoke) { s.t++; s.y -= s.fire ? 0.5 : 0.35; s.x += s.vx; s.r += s.fire ? 0.02 : 0.08; }
+    this.smoke = this.smoke.filter(s => s.t < (s.fire ? 22 : 70));
+  }
+  breakApart(s) {
+    const x = this.x, y = this.y;
+    const K = CAR_K;
+    const shard = (n, cols, sx, sy) => { sx *= K; sy *= K; for (let i = 0; i < n; i++) FX.add({ type: 'bit', x: x + sx + rnd(-8, 8), y: y + sy + rnd(-4, 4), vx: rnd(-2.5, 2.5), vy: -rnd(1.5, 4), life: irnd(20, 40), col: pick(cols), g: 0.2 }); };
+    const chunk = (sx, sy, w, h, col) => (sx *= K, sy *= K, FX.add({ type: 'chunk', x: x + sx, y: y + sy, vx: rnd(-1.5, 2.5), vy: -rnd(3, 5), w, h, col, g: 0.25, life: 70, rot: 0, vr: rnd(-0.3, 0.3) }));
+    Snd.play('clash', 0.8); Game.shakeIt(0, 3, 10); Game.cheer(1);
+    if (s === 1) shard(10, ['#e8f6ff', '#a8d4f4'], 10, -30);
+    if (s === 2) { shard(18, ['#e8f6ff', '#a8d4f4', '#4a7ab0'], -16, -30); chunk(56, -12, 7, 3, '#d8d8e4'); }
+    if (s === 3) { chunk(14, -20, 26, 13, '#c42a2c'); chunk(-36, -10, 6, 6, '#9a9aac'); chunk(36, -10, 6, 6, '#9a9aac'); }
+    if (s === 4) { shard(16, ['#e8f6ff', '#a8d4f4'], 10, -30); chunk(-58, -10, 6, 3, '#d8d8e4'); }
+    if (s === 5) { for (let i = 0; i < 4; i++) chunk(rnd(-40, 40), -30, irnd(5, 12), irnd(3, 7), pick(['#c42a2c', '#7a1420', '#d8d8e4'])); shard(24, ['#ffd060', '#ff6020', '#e8f6ff'], 0, -24); FX.burst(x + 44, y - 34, ['#ffffff', '#ffd060', '#ff6020', '#a01010']); }
+  }
+  hurtboxes() {
+    if (this.hp <= 0 || Game.phase !== 'fight') return [];
+    return [{ x0: this.x - 75, x1: this.x + 75, y0: this.y - 66, y1: this.y }];
+  }
+  hitbox() { return null; }
+  render(c) {
+    const S = carSprite(this.damageStage());
+    const sx = this.shakeT > 0 ? (this.shakeT % 2 ? 2 : -2) : 0;
+    const sm = c.imageSmoothingEnabled; c.imageSmoothingEnabled = false;
+    c.drawImage(S.cv, Math.round(this.x - S.ox + sx), Math.round(this.y - S.oy + 2));
+    if (this.flash > 0) { c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.35; c.drawImage(S.cv, Math.round(this.x - S.ox + sx), Math.round(this.y - S.oy + 2)); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
+    c.imageSmoothingEnabled = sm;
+    for (const s of this.smoke) {
+      const k = s.t / (s.fire ? 22 : 70);
+      c.fillStyle = s.fire ? (k < 0.4 ? '#fff0a0' : k < 0.7 ? '#ffa020' : '#e04010') : `rgba(40,30,40,${0.55 * (1 - k)})`;
+      c.fillRect(Math.round(s.x - s.r), Math.round(s.y - s.r), Math.ceil(s.r * 2), Math.ceil(s.r * 2));
+    }
+  }
+}
+
+// ---- bonus round flow (called from Game.roundFlow when Game.mode === 'bonus') ----
+Game.bonusFlow = function () {
+  const [p, car] = this.f;
+  if (this.phase === 'bonusEnd') {
+    if (this.phaseT === 50) {
+      const dmg = Math.round((1 - Math.max(0, car.hp) / car.st.hp) * 100), wrecked = car.hp <= 0;
+      const timeB = wrecked ? this.timer * 500 : 0, dmgB = dmg * 200, total = timeB + dmgB + (wrecked ? 20000 : 0);
+      this.bonus = { dmg, wrecked, timeB, dmgB, total, shown: 0 };
+      p.score += total;
+      if (wrecked) { p.state = 'win'; p.sf = 0; p.mv = null; p.y = FLOOR; Voice.say('perfect'); Music.play('win'); }
+      else { p.state = 'timeover'; p.sf = 0; Music.stop(); }
+    }
+    if (this.bonus && this.bonus.shown < this.bonus.total) { this.bonus.shown = Math.min(this.bonus.total, this.bonus.shown + Math.ceil(this.bonus.total / 60)); if (TICK % 3 === 0) Snd.play('tick', 0.6); }
+    if (this.phaseT >= 300) Flow.onBonusOver();
+  }
+};
+Game.bonusKO = function () {
+  this.phase = 'bonusEnd'; this.phaseT = 0; this.slow = 60; this.koFlash = 8;
+  Snd.play('ko', 0.6); this.cheer(3); this.shakeIt(0, 5, 20);
+  this.showBanner('WRECKED!', 'red', 130, 6);
+};
+Game.bonusTimeOver = function () {
+  this.phase = 'bonusEnd'; this.phaseT = 0; this.timeOver = true;
+  this.showBanner('TIME OVER', 'gold', 120, 5); Voice.say('time_over');
+};
 
 // ---------- CPU opponent ----------
 // Reads a delayed snapshot of the world (human-like reaction time) and drives a virtual joystick.
@@ -2882,6 +3087,7 @@ const Stage = {
 // ---------- In-fight HUD ----------
 const HUD = {
   draw() {
+    if (Game.mode === 'bonus') return this.drawBonus();
     const [a, b] = Game.f, c = ctx;
     // portraits (original pixel-art faces), flashing red when hit
     drawFace(c, a.ch.id, 4, 4, 28, 32, false, { frame: true, frameCol: a.flash > 0 ? '#ff3030' : '#e8b020', tint: a.hp <= 0 ? 'rgba(0,0,0,.45)' : null });
@@ -2916,6 +3122,37 @@ const HUD = {
       text(f.comboShowN + ' HIT', x, 50, { scale: 3, pal: 'gold', align: left ? 'left' : 'right', italic: true, zoom: z, alpha: al });
       text('COMBO!', x, 74, { scale: 2, pal: 'red', align: left ? 'left' : 'right', italic: true, alpha: al });
       if (f.comboEnd) text(f.comboDmgShow + ' DAMAGE', x, 92, { scale: 1, pal: 'plainYellow', align: left ? 'left' : 'right', alpha: al });
+    }
+  },
+  drawBonus() {
+    const [a, car] = Game.f, c = ctx;
+    drawFace(c, a.ch.id, 4, 4, 28, 32, false, { frame: true, frameCol: a.flash > 0 ? '#ff3030' : '#e8b020' });
+    text(a.ch.name, 37, 2, { pal: 'gold' });
+    this.bar(a, 37, 12, 132, false);
+    // the car's "portrait": a mini car in a frame
+    c.fillStyle = '#000'; c.fillRect(VW - 33.5, 2.5, 31, 35); c.fillStyle = '#e8b020'; c.fillRect(VW - 33, 3, 30, 34); c.fillStyle = '#1a0a24'; c.fillRect(VW - 32, 4, 28, 32);
+    const S = carSprite(car.damageStage());
+    c.save(); c.beginPath(); c.rect(VW - 32, 4, 28, 32); c.clip(); c.imageSmoothingEnabled = false;
+    c.drawImage(S.cv, VW - 32 - 6, 10, 40, 20); c.restore();
+    text('CAR', VW - 37, 2, { pal: 'gold', align: 'right' });
+    this.bar(car, VW - 37 - 132, 12, 132, true);
+    c.fillStyle = '#000'; c.beginPath(); c.arc(VW / 2, 17, 11, 0, TAU); c.fill();
+    c.fillStyle = '#d01818'; c.beginPath(); c.arc(VW / 2, 17, 9.5, 0, TAU); c.fill();
+    text('KO', VW / 2 + 1, 13.5, { pal: 'plainWhite', align: 'center' });
+    text(String(Game.timer).padStart(2, '0'), VW / 2, 29, { scale: 3, pal: Game.timer <= 10 && (TICK >> 4) % 2 ? 'red' : 'gold', align: 'center' });
+    text('1P ' + String(a.score).padStart(7, '0'), 37, 25, { pal: 'plainWhite' });
+    text('BONUS STAGE', VW - 37, 25, { pal: 'plainYellow', align: 'right' });
+    if (a.comboShow > 0 && a.comboShowN >= 2) text(a.comboShowN + ' HIT', 10, 50, { scale: 3, pal: 'gold', alpha: a.comboShow < 15 ? a.comboShow / 15 : 1 });
+    // tally
+    const B = Game.bonus;
+    if (B && Game.phaseT > 55) {
+      c.fillStyle = 'rgba(0,0,0,.72)'; c.fillRect(70, 96, VW - 140, 82);
+      c.strokeStyle = '#ffe000'; c.strokeRect(71.5, 97.5, VW - 143, 79);
+      text(B.wrecked ? 'BONUS STAGE CLEAR!' : 'BONUS STAGE', VW / 2, 102, { scale: 2, pal: B.wrecked ? 'gold' : 'silver', align: 'center' });
+      text('DAMAGE ' + B.dmg + '%', 90, 124, { pal: 'plainWhite' }); text(String(B.dmgB), VW - 90, 124, { pal: 'plainWhite', align: 'right' });
+      text('TIME BONUS', 90, 136, { pal: 'plainWhite' }); text(String(B.timeB), VW - 90, 136, { pal: 'plainWhite', align: 'right' });
+      if (B.wrecked) { text('WRECK BONUS', 90, 148, { pal: 'plainWhite' }); text('20000', VW - 90, 148, { pal: 'plainWhite', align: 'right' }); }
+      text('TOTAL', 90, 162, { pal: 'plainYellow' }); text(String(B.shown), VW - 90, 162, { pal: 'plainYellow', align: 'right' });
     }
   },
   winMark(x, y) {
@@ -3068,6 +3305,7 @@ const Flow = {
     const M = menuInput();
     if (M.coin) this.coin();
     switch (this.state) {
+      case 'boot': this.updateBoot(M); break;
       case 'title':
         this.idle++;
         if (M.start || M.ok) { if (this.credits === 0) this.coin(); this.credits--; Snd.play('confirm'); this.go('mode'); }
@@ -3082,7 +3320,7 @@ const Flow = {
         break;
       }
       case 'options': {
-        const n = 5;
+        const n = 6;
         if (M.up) { this.menuIdx = (this.menuIdx + n - 1) % n; Snd.play('select'); }
         if (M.down) { this.menuIdx = (this.menuIdx + 1) % n; Snd.play('select'); }
         if (M.left || M.right || M.ok) this.optionPick(this.menuIdx, M.left ? -1 : 1, M.ok);
@@ -3130,7 +3368,8 @@ const Flow = {
     if (i === 1) toggleCRT();
     if (i === 2) toggleSound();
     if (i === 3) stepScan(d < 0 ? -1 : 1);
-    if (i === 4 && ok) { this.go(this.optBack || 'mode'); return; }
+    if (i === 4) { OPT.vibe = !OPT.vibe; if (OPT.vibe) buzz(null, 40); }
+    if (i === 5 && ok) { this.go(this.optBack || 'mode'); return; }
     saveOpt();
   },
   updateSelect() {
@@ -3172,7 +3411,7 @@ const Flow = {
   },
   ladderOpp() { const L = this.ladderList(); return L[Math.min(this.ladder.stage, L.length - 1)]; },
   ladderFinal() { return this.ladder.stage >= this.ladderList().length - 1; },
-  cpuLevel() { const s = this.ladder ? this.ladder.stage : 0, n = this.ladder && this.ladder.list ? this.ladder.list.length : 4; const k = Math.min(3, Math.floor(s * 4 / n)); return [[0, 0, 1, 1], [1, 1, 2, 3], [2, 2, 3, 3]][OPT.difficulty][k]; },
+  cpuLevel() { const s = this.ladder ? this.ladder.stage : 0, n = this.ladder && this.ladder.list ? this.ladder.list.length : 4; const k = Math.min(3, Math.floor(s * 4 / n)); const lv = [[0, 0, 1, 1], [1, 1, 2, 3], [2, 2, 3, 3]][OPT.difficulty][k]; return usingTouch && OPT.difficulty < 2 && k >= 2 ? lv - 1 : lv; },   // touch players get a slightly kinder late ladder
   storyNext() { this.pageT = 0; if (++this.page > 1) this.go('vs'); },
   endingPages() { return STORY.ending[Game.f[0].ch.id] || []; },
   endingNext() { this.pageT = 0; if (++this.page > this.endingPages().length) this.go('title'); else if (this.page === this.endingPages().length) Voice.say('congratulations', 0.2); },
@@ -3218,6 +3457,7 @@ const Flow = {
   },
   rawFor(f) {
     if (Game.phase !== 'fight' || this.paused) return {};
+    if (f.ctrl.type === 'car') return {};
     if (f.ctrl.type === 'cpu') return f.ai.think();
     return PORTS[f.ctrl.port].cur;
   },
@@ -3267,11 +3507,26 @@ const Flow = {
     }
     this.go('result');
   },
+  startBonus() {
+    this.ladder.bonusDone = true;
+    const S = this.sel, f1 = new Fighter(0, CHAR_ORDER[S.p[0].cur], S.p[0].pal, { type: 'human', port: 1 });
+    f1.score = this.ladder.score;
+    Stage.set('harbor');
+    Game.setup(f1, new CarTarget(), 'bonus');
+    this.paused = false; this.state = 'fight'; this.t = 0; mergePorts = true;
+  },
+  onBonusOver() {
+    const p = Game.f[0];
+    this.ladder.score = p.score;
+    if (p.score > OPT.hiScore) { OPT.hiScore = p.score; saveOpt(); }
+    this.go('vs');
+  },
   afterResult() {
     if (this.mode === '2p') { this.go('select'); return; }
     if (this.result.playerWon) {
       this.ladder.stage++;
       if (this.ladder.stage >= this.ladderList().length) { this.go('ending'); return; }
+      if (this.ladder.stage === 2 && !this.ladder.bonusDone) { this.startBonus(); return; }
       this.go('vs');
     } else this.go('continue');
   },
@@ -3280,7 +3535,7 @@ const Flow = {
     const s = this.state;
     if (s === 'title') { if (this.credits === 0) this.coin(); this.credits--; Snd.play('confirm'); this.go('mode'); return; }
     if (s === 'mode') { for (let i = 0; i < 4; i++) if (y > 108 + i * 22 - 6 && y < 108 + i * 22 + 14) { this.menuIdx = i; this.modePick(i); } return; }
-    if (s === 'options') { for (let i = 0; i < 5; i++) if (y > 76 + i * 22 - 6 && y < 76 + i * 22 + 14) { this.menuIdx = i; this.optionPick(i, 1, true); } return; }
+    if (s === 'options') { for (let i = 0; i < 6; i++) if (y > 66 + i * 20 - 5 && y < 66 + i * 20 + 13) { this.menuIdx = i; this.optionPick(i, 1, true); } return; }
     if (s === 'moves') { this.go(this.movesBack || 'mode'); if (this.movesBack === 'fight') this.state = 'fight'; return; }
     if (s === 'select') {
       const S = this.sel, i = S.p[0].done ? 1 : 0;
@@ -3305,6 +3560,7 @@ const Flow = {
     c.setTransform(RES, 0, 0, RES, 0, 0);
     c.imageSmoothingEnabled = true;
     switch (this.state) {
+      case 'boot': this.drawBoot(); break;
       case 'title': this.drawTitle(); break;
       case 'mode': this.drawMode(); break;
       case 'options': this.drawOptions(); break;
@@ -3319,7 +3575,7 @@ const Flow = {
       case 'ending': this.drawEnding(); break;
       case 'challenger': this.drawFight(true); this.drawChallenger(); break;
     }
-    if (this.state !== 'fight' || Game.mode === 'demo') text('CREDIT ' + this.credits, VW - 6, VH - 10, { pal: 'plainWhite', align: 'right' });
+    if (this.state !== 'boot' && (this.state !== 'fight' || Game.mode === 'demo')) text('CREDIT ' + this.credits, VW - 6, VH - 10, { pal: 'plainWhite', align: 'right' });
   },
   bg(c1, c2, rot) {
     const g = ctx.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, c1); g.addColorStop(1, c2);
@@ -3367,10 +3623,10 @@ const Flow = {
   drawOptions() {
     this.bg('#0a0418', '#0a2a3a');
     text('OPTIONS', VW / 2, 36, { scale: 3, pal: 'blue', align: 'center', italic: true });
-    const items = ['DIFFICULTY  ' + ['EASY', 'NORMAL', 'HARD'][OPT.difficulty], 'CRT CURVE   ' + (OPT.crt ? 'ON' : 'OFF'), 'SOUND       ' + (OPT.sound ? 'ON' : 'OFF'), 'SCANLINES   ' + scanLabel(), 'BACK'];
+    const items = ['DIFFICULTY  ' + ['EASY', 'NORMAL', 'HARD'][OPT.difficulty], 'CRT CURVE   ' + (OPT.crt ? 'ON' : 'OFF'), 'SOUND       ' + (OPT.sound ? 'ON' : 'OFF'), 'SCANLINES   ' + scanLabel(), 'VIBRATION   ' + (OPT.vibe ? 'ON' : 'OFF'), 'BACK'];
     items.forEach((s, i) => {
-      const on = i === this.menuIdx, y = 76 + i * 22;
-      if (on) { ctx.fillStyle = 'rgba(60,160,255,.3)'; ctx.fillRect(60, y - 5, VW - 120, 18); }
+      const on = i === this.menuIdx, y = 66 + i * 20;
+      if (on) { ctx.fillStyle = 'rgba(60,160,255,.3)'; ctx.fillRect(60, y - 4, VW - 120, 17); }
       text(s, 80, y, { scale: 2, pal: on ? 'gold' : 'silver' });
     });
     text('LEFT / RIGHT TO CHANGE   KICK TO GO BACK', VW / 2, 196, { pal: 'plainGrey', align: 'center' });
@@ -3654,6 +3910,62 @@ function drawProj(c, p) {
   c.restore();
 }
 
+// ---------- Power-on boot: board self-test while the graphics finish decoding ----------
+Flow.bootInfo = function () {
+  const keys = Object.keys(ART), n = keys.length; let ok = 0;
+  for (const k of keys) if (artOK(k)) ok++;
+  return { ok, n, k: n ? ok / n : 1 };
+};
+Flow.updateBoot = function (M) {
+  const B = this.bootInfo();
+  if (!this.bootDone && B.k >= 1 && this.t >= 150) { this.bootDone = this.t; Snd.play('coin', 0.5); }
+  const skip = (M.start || M.ok || M.anyBtn || M.coin) && this.t > 20;
+  if ((this.bootDone && this.t - this.bootDone > 50) || this.t > 60 * 8 || skip) this.go('title');
+};
+Flow.drawBoot = function () {
+  const c = ctx, t = this.t, B = this.bootInfo();
+  c.fillStyle = '#000'; c.fillRect(0, 0, VW, VH);
+  // the first few frames: uninitialised video RAM garbage, like a real board powering up
+  if (t < 14) {
+    for (let y = 0; y < VH; y += 8) for (let x = 0; x < VW; x += 8) {
+      const h = (x * 7 + y * 13 + (t >> 1) * 31) % 97;
+      if (h < 40) { c.fillStyle = ['#ff00ff', '#00ffff', '#ffff00', '#2040ff', '#ff4020', '#ffffff'][h % 6]; c.fillRect(x, y, 8, h % 3 ? 8 : 4); }
+    }
+    return;
+  }
+  if (t < 40) {   // colour bars / crosshatch test pattern
+    const cols = ['#ffffff', '#ffff00', '#00ffff', '#00ff00', '#ff00ff', '#ff0000', '#0000ff', '#000000'];
+    for (let i = 0; i < 8; i++) { c.fillStyle = cols[i]; c.fillRect(i * 48, 0, 48, VH * 0.66); }
+    for (let i = 0; i < 16; i++) { const v = i * 17; c.fillStyle = `rgb(${v},${v},${v})`; c.fillRect(i * 24, VH * 0.66, 24, VH * 0.34); }
+    return;
+  }
+  const L = (s, x, y, pal) => text(s, x, y, { pal: pal || 'plainWhite' });
+  const lineT = [44, 58, 72, 86, 100, 114];
+  const okAt = i => t > lineT[i] + 12;
+  L('AA-90 SYSTEM   SELF TEST', 32, 24, 'plainYellow');
+  L('(C)1991 ANARCHY ARENA', 32, 36, 'plainYellow');
+  const rows = [['WORK RAM', 'OK'], ['VIDEO RAM', 'OK'], ['PALETTE RAM', 'OK'], ['GRAPHICS ROM', null], ['SOUND ROM', 'OK'], ['VOICE ROM', 'OK']];
+  rows.forEach((r, i) => {
+    if (t < lineT[i]) return;
+    const y = 58 + i * 14;
+    L(r[0], 32, y); L('.'.repeat(Math.max(0, 22 - r[0].length)), 32 + (r[0].length + 1) * 6, y, 'silver');
+    if (r[1] === null) {
+      if (B.k >= 1 && okAt(i)) L('OK', 210, y, 'plainCyan');
+      else L(String(Math.floor(B.k * 100)).padStart(3, ' ') + '%', 204, y, 'plainRed');
+    } else if (okAt(i) && (i < 4 || B.k >= 1)) L(r[1], 210, y, 'plainCyan');
+  });
+  // loading bar
+  const by = 160;
+  c.fillStyle = '#3a3a48'; c.fillRect(32, by, 240, 8);
+  c.fillStyle = '#000'; c.fillRect(33, by + 1, 238, 6);
+  const w = Math.floor(238 * Math.min(B.k, t / 150));
+  for (let x = 0; x < w; x += 4) { c.fillStyle = x % 8 ? '#e8b020' : '#ffd860'; c.fillRect(33 + x, by + 1, Math.min(4, w - x), 6); }
+  if (!this.bootDone) { if ((t >> 4) % 2) L('NOW LOADING', 32, 176, 'plainYellow'); }
+  else L('ALL CHECKS OK', 32, 176, 'plainCyan');
+  // blinking cursor
+  if ((t >> 3) % 2) { c.fillStyle = '#fff'; c.fillRect(32, 196, 6, 7); }
+};
+
 // ---------- Display: WebGL CRT post-process (with 2D fallback), touch controls, main loop ----------
 const screenCv = document.getElementById('screen');
 const touchCv = document.getElementById('touch');
@@ -3756,6 +4068,13 @@ function resize() {
   touchCv.style.width = ww + 'px'; touchCv.style.height = wh + 'px';
   if (GL) GL.viewport(0, 0, screenCv.width, screenCv.height);
   void r;
+  // operator panel: in the right-hand pillarbox on wide screens, under the picture if there's room, else a faint overlay
+  const bar = document.getElementById('bar');
+  if (bar) {
+    const side = viewRect.x >= 66, below = !side && wh - (viewRect.y + h) >= 46;
+    bar.className = side ? 'side' : below ? 'below' : 'over';
+    if (side) bar.style.setProperty('--sideX', Math.max(4, (viewRect.x - 64) / 2) + 'px');
+  }
 }
 function present() {
   if (GL) {
@@ -3777,9 +4096,11 @@ function stepScan(d) { let v = OPT.scan ? OPT.scanLv : 0; v = (v + d + 4) % 4; O
 function scanLabel() { return OPT.scan ? ['', 'LIGHT', 'STRONG', 'MAX'][OPT.scanLv] : 'OFF'; }
 function syncButtons() {
   screenCv.classList.toggle('crt', OPT.crt);
-  document.getElementById('bCrt').classList.toggle('off', !OPT.crt);
-  document.getElementById('bSnd').classList.toggle('off', !OPT.sound);
-  const bs = document.getElementById('bScan'); bs.classList.toggle('off', !OPT.scan); bs.textContent = 'SCANLINES ' + scanLabel();
+  const set = (id, on, sub) => { const b = document.getElementById(id); b.classList.toggle('on', on); b.querySelector('em').textContent = sub; };
+  set('bCrt', OPT.crt, OPT.crt ? 'ON' : 'OFF');
+  set('bSnd', OPT.sound, OPT.sound ? 'ON' : 'OFF');
+  set('bScan', OPT.scan, scanLabel());
+  set('bFs', !!document.fullscreenElement, document.fullscreenElement ? 'ON' : 'SCREEN');
 }
 
 // ---------------- touch controls ----------------
@@ -3806,7 +4127,9 @@ function touchLayout() {
 function stickDirs(dx, dy) {
   const out = { up: 0, down: 0, left: 0, right: 0 };
   if (Math.hypot(dx, dy) < 14) return out;
-  const a = Math.atan2(dy, dx), s = (Math.round(a / (Math.PI / 4)) + 8) % 8;
+  // diagonals get wider zones than on a real 8-way gate: quarter-circles are much easier to hit with a thumb
+  const deg = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, near = deg % 90, cardinal = near < 18 || near > 72;
+  const s = cardinal ? Math.round(deg / 90) % 4 * 2 : (Math.floor(deg / 90) * 2 + 1) % 8;
   const map = [['right'], ['right', 'down'], ['down'], ['left', 'down'], ['left'], ['left', 'up'], ['up'], ['right', 'up']][s];
   for (const k of map) out[k] = 1;
   return out;
@@ -4013,10 +4336,12 @@ document.getElementById('bFs').addEventListener('click', async e => {
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden && Flow.state === 'fight' && Game.mode !== 'demo' && !Flow.paused) Flow.paused = true; lastT = performance.now(); acc = 0; });
 window.addEventListener('resize', () => { resize(); TC.layout = touchLayout(); });
+document.addEventListener('fullscreenchange', () => { syncButtons(); });
 if (matchMedia('(pointer:coarse)').matches) { usingTouch = true; touchCv.classList.add('on'); }
 
 initGL(); resize(); syncButtons(); Stage.build();
-Flow.go('title');
+{ const bt = document.getElementById('boot'); if (bt) bt.remove(); }
+Flow.go('boot');
 requestAnimationFrame(frame);
 
 </script>
