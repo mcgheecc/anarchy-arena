@@ -59,8 +59,9 @@ body{font-family:monospace;color:#fff}
 #boot{position:fixed;inset:0;z-index:8;background:#000;color:#ffd44a;display:flex;flex-direction:column;align-items:center;justify-content:center;font:bold 22px monospace;letter-spacing:3px;animation:bl 1s steps(2) infinite}
 #boot span{font-size:12px;color:#ccc;margin-top:10px;letter-spacing:2px}
 @keyframes bl{50%{opacity:.25}}
-#rotate{display:none;position:fixed;inset:0;z-index:9;background:#000;color:#ffd44a;align-items:center;justify-content:center;text-align:center;font:bold 18px monospace;padding:30px;line-height:1.6}
+#rotate{display:none;flex-direction:column;gap:10px;position:fixed;inset:0;z-index:9;background:#000;color:#ffd44a;align-items:center;justify-content:center;text-align:center;font:bold 18px monospace;padding:30px;line-height:1.6}
 @media (orientation:portrait) and (pointer:coarse){#rotate{display:flex}}
+#rotate span{display:block;max-width:280px}
 </style>
 </head>
 <body>
@@ -74,7 +75,7 @@ body{font-family:monospace;color:#fff}
  <button id="bSnd" type="button" title="Sound (F3)"><i></i>SOUND<em>ON</em></button>
  <button id="bFs" type="button" title="Fullscreen (F11)"><i></i>FULL<em>SCREEN</em></button>
 </div>
-<div id="rotate">&#8635; ROTATE TO LANDSCAPE<br><span style="font-size:13px;color:#ccc">Anarchy Arena plays sideways, like a real cabinet.</span></div>
+<div id="rotate"><span>&#8635; ROTATE TO LANDSCAPE</span><span style="font-size:13px;color:#ccc">Anarchy Arena plays sideways, like a real cabinet.</span><span style="font-size:12px;color:#7fe0ff;letter-spacing:1px">VERSION 1.0 &middot; 27 NOV 2026</span></div>
 <script>
 'use strict';
 /* =====================================================================
@@ -107,6 +108,16 @@ function pixelLayer(fn) {
 // ---------- Small helpers ----------
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
+// sine/cosine built only from + - * / so every phone gets bit-identical results (Math.sin differs slightly
+// between iPhone and Android engines, which would make linked fights drift apart). Used wherever trig moves a fighter.
+function dsin(x) {
+  const P = 3.141592653589793, TP = 6.283185307179586, H = 1.5707963267948966;
+  x -= TP * Math.floor((x + P) / TP);
+  if (x > H) x = P - x; else if (x < -H) x = -P - x;
+  const q = x * x;
+  return x * (1 - q / 6 * (1 - q / 20 * (1 - q / 42 * (1 - q / 72 * (1 - q / 110 * (1 - q / 156))))));
+}
+const dcos = x => dsin(x + 1.5707963267948966);
 const rnd = (a, b) => a + Math.random() * (b - a);
 const irnd = (a, b) => Math.floor(rnd(a, b + 1));
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -146,6 +157,7 @@ const KEYMAP = {
 const BTN = ['lp', 'hp', 'lk', 'hk'];
 const PAD_FIELDS = ['up', 'down', 'left', 'right', 'lp', 'hp', 'lk', 'hk', 'start', 'coin'];
 const TOUCH = { up: 0, down: 0, left: 0, right: 0, lp: 0, hp: 0, lk: 0, hk: 0, start: 0, coin: 0 };
+const GAME_VERSION = '1.0', GAME_BUILD_DATE = '27 NOV 2026';
 let usingTouch = false;
 const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const IS_STANDALONE = navigator.standalone === true || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
@@ -1533,7 +1545,7 @@ class Fighter {
     return this.chargeD >= CHARGE_T || TICK - this.fullDAt <= grace;
   }
   motion(code, extra = 0) {
-    const seq = MOTIONS[code], win = MOTION_WIN[code] + extra + (usingTouch && this.ctrl.type === 'human' ? 6 : 0), h = this.hist;   // thumbs are slower than a stick
+    const seq = MOTIONS[code], win = MOTION_WIN[code] + extra + ((this.ctrl.lenient !== undefined ? this.ctrl.lenient : usingTouch && this.ctrl.type === 'human') ? 6 : 0), h = this.hist;   // thumbs are slower than a stick
     let i = h.length - 1, idx = seq.length - 1;
     const stop = Math.max(0, h.length - win);
     // final direction must be fresh (within 6 frames)
@@ -1689,7 +1701,7 @@ class Fighter {
         const d = this.dashDir, T = d > 0 ? st.dashT : st.bdashT;
         const v = d > 0 ? st.dashV : st.bdashV;
         this.x += v * this.face * (1 - this.sf / T * 0.6);
-        if (d < 0) this.y = FLOOR - Math.sin(this.sf / T * Math.PI) * 10;
+        if (d < 0) this.y = FLOOR - dsin(this.sf / T * Math.PI) * 10;
         if (this.sf % 5 === 1) FX.dust(this.x - this.face * 8 * d, FLOOR, -this.face * d, 2);
         if (this.sf >= T) { this.y = FLOOR; this.state = 'idle'; this.sf = 0; FX.dust(this.x, FLOOR, this.face, 3); }
         break;
@@ -1842,7 +1854,7 @@ class Fighter {
     else if (!back && t <= 18) { v.x = this.x + f * (22 - (t - 10)); v.y = FLOOR - 8 - (t - 10) * 3; }
     else if (back && t <= 26) {
       const k = (t - 10) / 16, a = k * Math.PI;
-      v.x = this.x + f * Math.cos(a) * 26; v.y = FLOOR - 30 - Math.sin(a) * 34; v.throwRot = -a * 1.2;
+      v.x = this.x + f * dcos(a) * 26; v.y = FLOOR - 30 - dsin(a) * 34; v.throwRot = -a * 1.2;
     }
     if (v.state === 'thrown' || t === (back ? 26 : 18)) {
       const cx = clamp(v.x, 14, WORLD_W - 14);
@@ -3333,6 +3345,12 @@ const Flow = {
     if (s === 'select') {
       Music.play('select');
       this.sel = { p: [{ cur: 0, done: false, pal: 0 }, { cur: 1, done: this.mode === '1p', pal: 0 }], timer: 20 * 60 + 59, outT: 0 };
+      if (this.mode === 'net') {   // keep your last pick, and catch up with anything the other phone already chose
+        const L = this.netLast; if (L) { this.sel.p[0].cur = L[0]; this.sel.p[1].cur = L[1]; }
+        this.sel.sent = this.sel.p[Net.side].cur;
+        if (Net.pendingCur !== null) this.netCursor(Net.pendingCur);
+        if (Net.pendingLock) this.netLock(Net.pendingLock);
+      }
     }
     if (s === 'vs') Music.stop();
     if (s === 'continue') { Music.play('continue'); this.cont = 9; this.contT = 0; Voice.say('continue'); Voice.say('9', Math.max(0.6, Voice.dur('continue') + 0.2)); }
@@ -3352,13 +3370,14 @@ const Flow = {
     if (M.coin) this.coin();
     switch (this.state) {
       case 'boot': this.updateBoot(M); break;
+      case 'link': this.updateLink(M); break;
       case 'title':
         this.idle++;
         if (M.start || M.ok) { if (this.credits === 0) this.coin(); this.credits--; Snd.play('confirm'); this.go('mode'); }
         else if (this.idle > 60 * 22) this.startDemo();
         break;
       case 'mode': {
-        const items = 4;
+        const items = 5;
         if (M.up) { this.menuIdx = (this.menuIdx + items - 1) % items; Snd.play('select'); }
         if (M.down) { this.menuIdx = (this.menuIdx + 1) % items; Snd.play('select'); }
         if (M.back) { Snd.play('select'); this.go('title'); break; }
@@ -3383,7 +3402,7 @@ const Flow = {
         else if (this.pageT > 20 + txt.length / 1.6 + 300) this.storyNext();
         break;
       }
-      case 'vs': if (this.t > this.vsLength() || (this.t > 40 && M.anyBtn)) this.beginFight(); break;
+      case 'vs': if (this.t > this.vsLength() || (this.t > 40 && M.anyBtn && this.mode !== 'net')) this.beginFight(); break;
       case 'fight': this.updateFight(M); break;
       case 'result': if (this.t > 330 || (this.t > 50 && M.anyBtn)) this.afterResult(); break;
       case 'continue':
@@ -3405,8 +3424,9 @@ const Flow = {
     Snd.play('confirm');
     if (i === 0) { this.mode = '1p'; this.ladder = { stage: 0, score: 0 }; this.go('select'); }
     if (i === 1) { this.mode = '2p'; this.go('select'); }
-    if (i === 2) { this.movesBack = 'mode'; this.go('moves'); }
-    if (i === 3) { this.optBack = 'mode'; this.go('options'); }
+    if (i === 2) { Net.phase = 'menu'; Net.menuIdx = 0; this.go('link'); }
+    if (i === 3) { this.movesBack = 'mode'; this.go('moves'); }
+    if (i === 4) { this.optBack = 'mode'; this.go('options'); }
   },
   optionPick(i, d, ok) {
     Snd.play('select');
@@ -3421,9 +3441,10 @@ const Flow = {
   updateSelect() {
     const S = this.sel;
     if (S.outT > 0) { if (++S.outT > 50) this.go(this.mode === '1p' && this.ladder.stage === 0 ? 'story' : 'vs'); return; }
-    S.timer--;
+    if (this.mode !== 'net') S.timer--;
+    else if (this.escHit || TOUCH._pause) { TOUCH._pause = 0; Net.leave(); this.go('mode'); this.menuIdx = 2; return; }
     // 1P: player 1's controls drive the CPU cursor while picking the first opponent
-    const pairs = this.mode === '2p' ? [[1, 0], [2, 1]] : S.oppPick ? [[1, 1]] : [[1, 0]];
+    const pairs = this.mode === '2p' ? [[1, 0], [2, 1]] : this.mode === 'net' ? [[1, Net.side]] : S.oppPick ? [[1, 1]] : [[1, 0]];
     const mine = S.oppPick ? S.p[0].cur : -1;
     pairs.forEach(([pn, i]) => {
       const P = PORTS[pn], s = S.p[i];
@@ -3435,6 +3456,7 @@ const Flow = {
       if (b || S.timer <= 0) this.lockIn(i, b && (b === 'lk' || b === 'hk') ? 1 : 0);
     });
     if (S.timer <= 0) for (let i = 0; i < 2; i++) if (!S.p[i].done) this.lockIn(i, 0);
+    if (this.mode === 'net') { const me = S.p[Net.side]; if (!me.done && me.cur !== S.sent) { S.sent = me.cur; Net.send({ t: 'cur', m: Net.m + 1, c: me.cur }); } }
     // fresh 1P run: once your fighter is locked in, choose who you fight first
     if (this.mode === '1p' && this.ladder.stage === 0 && S.p[0].done && !S.oppPick && !S.oppDone) {
       S.oppPick = true; S.p[1].done = false; S.p[1].pal = 0; S.timer = 15 * 60 + 59;
@@ -3447,13 +3469,14 @@ const Flow = {
     }
     if (S.p[0].done && S.p[1].done) {
       // 2P mirror match: force alternate colours
-      if (this.mode === '2p' && S.p[0].cur === S.p[1].cur && S.p[0].pal === S.p[1].pal) S.p[1].pal = 1 - S.p[0].pal;
+      if ((this.mode === '2p' || this.mode === 'net') && S.p[0].cur === S.p[1].cur && S.p[0].pal === S.p[1].pal) S.p[1].pal = 1 - S.p[0].pal;
       S.outT = 1;
     }
   },
   lockIn(i, pal) {
     const s = this.sel.p[i]; if (s.done) return;
-    s.done = true; s.pal = pal; Snd.play('confirm'); Voice.say(VO_NAME[CHAR_ORDER[s.cur]] || '', 0.05);
+    s.done = true; s.pal = pal; Snd.play('confirm');
+    if (this.mode === 'net' && !this._remoteLock && i === Net.side) Net.send({ t: 'lock', m: Net.m + 1, c: s.cur, pal }); Voice.say(VO_NAME[CHAR_ORDER[s.cur]] || '', 0.05);
     s.flash = 20;
   },
   // ladder: stage 0 rival, stage 1 mirror, stage 2 boss (rival alt colours)
@@ -3482,14 +3505,14 @@ const Flow = {
       if (this.ladderFinal() && STORY.FINAL[me] && STORY.FINAL[me][o]) { const d = STORY.FINAL[me][o]; return [[me, d[0]], [o, d[1]]]; }
       return [[o, storyLine('TAUNT', o, me, '')]];
     }
-    if (this.mode === '2p') { const o = CHAR_ORDER[S.p[1].cur]; return [[o, storyLine('TAUNT', o, me, '')]]; }
+    if (this.mode === '2p' || this.mode === 'net') { const o = CHAR_ORDER[S.p[1].cur]; return [[o, storyLine('TAUNT', o, me, '')]]; }
     return [];
   },
   vsLength() { const d = this.vsDialogue(); let n = 60; for (const [, l] of d) n += 30 + l.length / 1.6 + 70; return Math.max(170, n); },
   // 1P: the opponent's home stage, the final battle at Pier 13. 2P: player 2's home stage.
   pickStage() {
     if (this.mode === '1p') { if (this.ladderFinal()) return 'harbor'; return homeStage(this.ladderOpp().ch); }
-    if (this.mode === '2p') return homeStage(CHAR_ORDER[this.sel.p[1].cur]);
+    if (this.mode === '2p' || this.mode === 'net') return homeStage(CHAR_ORDER[this.sel.p[1].cur]);
     return 'harbor';
   },
   beginFight() {
@@ -3497,6 +3520,13 @@ const Flow = {
     let p1c = CHAR_ORDER[S.p[0].cur], p1p = S.p[0].pal, p2c, p2p;
     if (this.mode === '1p') { const o = this.ladderOpp(); p2c = o.ch; p2p = o.pal; }
     else { p2c = CHAR_ORDER[S.p[1].cur]; p2p = S.p[1].pal; }
+    if (this.mode === 'net') {
+      // both phones build the identical match; each side's presses come through Net
+      this.netLast = [S.p[0].cur, S.p[1].cur];
+      const len = s => (s === Net.side ? !!usingTouch : Net.remoteLenient);
+      const n1 = new Fighter(0, p1c, p1p, { type: 'net', side: 0, lenient: len(0) }), n2 = new Fighter(1, p2c, p2p, { type: 'net', side: 1, lenient: len(1) });
+      Stage.set(this.pickStage()); Game.setup(n1, n2, '2p'); Net.beginMatch(); this.paused = false; this.go('fight'); return;
+    }
     const f1 = new Fighter(0, p1c, p1p, { type: 'human', port: 1 });
     const f2 = new Fighter(1, p2c, p2p, this.mode === '2p' ? { type: 'human', port: 2 } : { type: 'cpu' });
     if (this.mode === '1p') { f2.ai = new CPU(f2, this.cpuLevel()); f1.score = this.ladder.score; }
@@ -3517,6 +3547,7 @@ const Flow = {
   rawFor(f) {
     if (Game.phase !== 'fight' || this.paused) return {};
     if (f.ctrl.type === 'car') return {};
+    if (f.ctrl.type === 'net') return Net.input(f.ctrl.side);
     if (f.ctrl.type === 'cpu') return f.ai.think();
     return PORTS[f.ctrl.port].cur;
   },
@@ -3525,6 +3556,15 @@ const Flow = {
       this.demoT++;
       if (M.anyBtn || M.coin || this.demoT > 60 * 45) { Music.stop(); this.go('title'); return; }
       Game.step(f => this.rawFor(f));
+      return;
+    }
+    if (this.mode === 'net') {
+      TOUCH._pause = 0;
+      if (!Net.connected) return;
+      Net.pump();
+      if (!Net.ready()) { Net.stallT++; return; }       // the other phone's presses for this frame haven't arrived yet
+      Net.stallT = 0;
+      Game.step(f => this.rawFor(f)); Net.afterStep();
       return;
     }
     // here comes a new challenger (P2 start during 1P arcade)
@@ -3581,7 +3621,7 @@ const Flow = {
     this.go('vs');
   },
   afterResult() {
-    if (this.mode === '2p') { this.go('select'); return; }
+    if (this.mode === '2p' || this.mode === 'net') { this.go('select'); return; }
     if (this.result.playerWon) {
       this.ladder.stage++;
       if (this.ladder.stage >= this.ladderList().length) { this.go('ending'); return; }
@@ -3593,11 +3633,13 @@ const Flow = {
     Snd.unlock();
     const s = this.state;
     if (s === 'title') { if (this.credits === 0) this.coin(); this.credits--; Snd.play('confirm'); this.go('mode'); return; }
-    if (s === 'mode') { for (let i = 0; i < 4; i++) if (y > 108 + i * 22 - 6 && y < 108 + i * 22 + 14) { this.menuIdx = i; this.modePick(i); } return; }
+    if (s === 'link') { this.tapLink(x, y); return; }
+    if (s === 'mode') { for (let i = 0; i < 5; i++) if (y > 96 + i * 20 - 5 && y < 96 + i * 20 + 14) { this.menuIdx = i; this.modePick(i); } return; }
     if (s === 'options') { for (let i = 0; i < 6; i++) if (y > 66 + i * 20 - 5 && y < 66 + i * 20 + 13) { this.menuIdx = i; this.optionPick(i, 1, true); } return; }
     if (s === 'moves') { this.go(this.movesBack || 'mode'); if (this.movesBack === 'fight') this.state = 'fight'; return; }
     if (s === 'select') {
-      const S = this.sel, i = S.p[0].done ? 1 : 0;
+      const S = this.sel, i = this.mode === 'net' ? Net.side : S.p[0].done ? 1 : 0;
+      if (this.mode === 'net' && S.p[i].done) return;
       if (this.mode === '1p' && i === 1 && !S.oppPick) return;
       const cardX = i === 0 ? 6 : VW - 136;
       if (x >= cardX && x <= cardX + 130 && y >= 36 && y <= 148) { this.lockIn(i, 1); return; }
@@ -3606,7 +3648,7 @@ const Flow = {
     }
     if (s === 'story') { const txt = this.page === 0 ? STORY.premise : STORY.intro[CHAR_ORDER[this.sel.p[0].cur]]; if (!storyDone(txt, this.pageT - 20)) this.pageT = 999; else this.storyNext(); return; }
     if (s === 'ending') { const pg = this.endingPages(), txt = pg[this.page] || ''; if (this.page < pg.length && !storyDone(txt, this.pageT - 30)) this.pageT = 999; else this.endingNext(); return; }
-    if (s === 'vs' && this.t > 40) { this.beginFight(); return; }
+    if (s === 'vs' && this.t > 40 && this.mode !== 'net') { this.beginFight(); return; }
     if (s === 'result' && this.t > 50) { this.afterResult(); return; }
     if (s === 'continue') { if (this.credits === 0) this.coin(); this.credits--; this.ladder.score = 0; Snd.play('confirm'); this.go('vs'); return; }
     if (s === 'gameover') { if (this.t > 60) this.go('title'); return; }
@@ -3620,6 +3662,7 @@ const Flow = {
     c.imageSmoothingEnabled = true;
     switch (this.state) {
       case 'boot': this.drawBoot(); break;
+      case 'link': this.drawLink(); break;
       case 'title': this.drawTitle(); break;
       case 'mode': this.drawMode(); break;
       case 'options': this.drawOptions(); break;
@@ -3633,6 +3676,10 @@ const Flow = {
       case 'gameover': this.drawGameOver(); break;
       case 'ending': this.drawEnding(); break;
       case 'challenger': this.drawFight(true); this.drawChallenger(); break;
+    }
+    if (this.mode === 'net' && this.state === 'fight') {
+      if (Net.stallT > 45 && (TICK >> 4) % 2 === 0) { ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(0, 100, VW, 22); text('WAITING FOR THE OTHER PHONE', VW / 2, 107, { pal: 'plainYellow', align: 'center' }); }
+      if (Net.desync) text('LINK OUT OF SYNC', VW / 2, 44, { pal: 'plainRed', align: 'center' });
     }
     if (this.state !== 'boot' && (this.state !== 'fight' || Game.mode === 'demo')) text('CREDIT ' + this.credits, VW - 6, VH - 10, { pal: 'plainWhite', align: 'right' });
   },
@@ -3671,9 +3718,9 @@ const Flow = {
   drawMode() {
     this.bg('#0a0418', '#2a0a3a', this.t * 0.004);
     text('SELECT MODE', VW / 2, 52, { scale: 3, pal: 'gold', align: 'center', italic: true });
-    const items = ['ARCADE   1P VS CPU', 'VERSUS   2P LOCAL', 'MOVE LIST', 'OPTIONS'];
+    const items = ['ARCADE   1P VS CPU', 'VERSUS   2P LOCAL', 'LINK     2 PHONES', 'MOVE LIST', 'OPTIONS'];
     items.forEach((s, i) => {
-      const on = i === this.menuIdx, y = 108 + i * 22;
+      const on = i === this.menuIdx, y = 96 + i * 20;
       if (on) { ctx.fillStyle = 'rgba(255,60,40,.35)'; ctx.fillRect(70, y - 5, VW - 140, 18); drawStar(ctx, 80, y + 4, 4, '#ffe23a'); }
       text(s, VW / 2, y, { scale: on ? 2 : 2, pal: on ? 'gold' : 'silver', align: 'center' });
     });
@@ -3735,7 +3782,7 @@ const Flow = {
     const head = S.oppPick ? 'CHOOSE OPPONENT' : 'PLAYER SELECT';
     text(head, VW / 2, 8, { scale: textWidth(head, 3) > VW - 16 ? 2 : 3, pal: 'gold', align: 'center', italic: true });
     const secs = Math.max(0, Math.floor(S.timer / 60));
-    text(String(secs).padStart(2, '0'), VW / 2, 31, { scale: 1, pal: secs < 5 ? 'plainRed' : 'plainWhite', align: 'center' });
+    if (this.mode !== 'net') text(String(secs).padStart(2, '0'), VW / 2, 31, { scale: 1, pal: secs < 5 ? 'plainRed' : 'plainWhite', align: 'center' });
     const BG = { red: ['#601020', '#200810'], blue: ['#102060', '#081020'], pink: ['#5a1050', '#200818'], gold: ['#5a3a10', '#200c08'] };
     const COL = { red: '#ff6a3a', blue: '#3af0ff', pink: '#ff6ad8', gold: '#ffd040' };
     // face tiles
@@ -3749,7 +3796,7 @@ const Flow = {
       c.lineWidth = 2; c.strokeStyle = on ? col : '#ffffff'; c.strokeRect(T.x - 1 + inset, T.y - 1 + inset, T.w + 2 - inset * 2, T.h + 2 - inset * 2);
       text(lbl, pi === 0 ? T.x + 2 : T.x + T.w - 2, T.y + 2, { pal: pi === 0 ? 'plainRed' : 'plainCyan', align: pi === 0 ? 'left' : 'right' });
     };
-    if (this.mode === '2p') cursor(1, '#3080ff', '2P');
+    if (this.mode === '2p' || this.mode === 'net') cursor(1, '#3080ff', '2P');
     else if (S.oppPick || S.oppDone) cursor(1, '#3080ff', 'CPU');
     cursor(0, '#ff3030', '1P');
     // big preview cards
@@ -3765,7 +3812,7 @@ const Flow = {
       });
     };
     card(0, 0);
-    if (this.mode === '2p' || S.oppPick || S.oppDone) card(1, 1);
+    if (this.mode === '2p' || this.mode === 'net' || S.oppPick || S.oppDone) card(1, 1);
     else {
       const x = VW - 6 - 130, y = 36;
       c.fillStyle = '#100818'; c.fillRect(x, y, 130, 112); c.strokeStyle = '#3080ff'; c.strokeRect(x + 0.5, y + 0.5, 129, 111);
@@ -3773,7 +3820,8 @@ const Flow = {
       text('CHALLENGER', x + 65, y + 118, { scale: 1, pal: 'plainCyan', align: 'center' });
       text('STAGE ' + (this.ladder.stage + 1), VW / 2, 158, { pal: 'plainYellow', align: 'center' });
     }
-    if (S.oppPick) text(usingTouch ? 'TAP A FACE TWICE TO PICK YOUR FIRST FIGHT' : 'PICK WHO YOU FIGHT FIRST', VW / 2, 212, { pal: 'plainYellow', align: 'center' });
+    if (this.mode === 'net') { const me = S.p[Net.side], them = S.p[1 - Net.side]; text(me.done && !them.done ? 'WAITING FOR THE OTHER PLAYER' : 'YOU ARE ' + (Net.side ? '2P' : '1P') + '  -  START BUTTON TO LEAVE', VW / 2, 212, { pal: me.done ? 'plainYellow' : 'plainGrey', align: 'center' }); }
+    else if (S.oppPick) text(usingTouch ? 'TAP A FACE TWICE TO PICK YOUR FIRST FIGHT' : 'PICK WHO YOU FIGHT FIRST', VW / 2, 212, { pal: 'plainYellow', align: 'center' });
     else text(usingTouch ? 'TAP FACE TWICE = COLOR A   TAP CARD = COLOR B' : 'PUNCH = COLOR A   KICK = COLOR B', VW / 2, 212, { pal: 'plainGrey', align: 'center' });
   },
   drawVS() {
@@ -4006,6 +4054,7 @@ Flow.drawBoot = function () {
   const okAt = i => t > lineT[i] + 12;
   L('AA-90 SYSTEM   SELF TEST', 32, 24, 'plainYellow');
   L('(C)1991 ANARCHY ARENA', 32, 36, 'plainYellow');
+  text('VER ' + GAME_VERSION, VW - 32, 24, { pal: 'plainCyan', align: 'right' });
   const rows = [['WORK RAM', 'OK'], ['VIDEO RAM', 'OK'], ['PALETTE RAM', 'OK'], ['GRAPHICS ROM', null], ['SOUND ROM', 'OK'], ['VOICE ROM', 'OK']];
   rows.forEach((r, i) => {
     if (t < lineT[i]) return;
@@ -4027,6 +4076,319 @@ Flow.drawBoot = function () {
   // blinking cursor
   if ((t >> 3) % 2) { c.fillStyle = '#fff'; c.fillRect(32, 196, 6, 7); }
 };
+
+// ---------- LINK BATTLE: two phones, one fight ----------
+// The phones find each other with a 4-digit room code through PeerJS's free public relay (only used to swap
+// connection details), then talk directly over Wi-Fi with a WebRTC data channel.
+// Both phones run the same fight; only button presses are sent ("lockstep"): each press is applied
+// NET_DELAY frames after it happens, so it has time to reach the other phone.
+const NET_DELAY = 3, NET_VER = 1, NET_PREFIX = 'anarchyarena-v1-';
+const NET_BITS = ['up', 'down', 'left', 'right', 'lp', 'hp', 'lk', 'hk'];
+
+const Net = {
+  phase: 'menu', side: 0, code: '', entry: '', err: '', ws: null, pc: null, dc: null, hb: null, timer: null,
+  connected: false, remoteLenient: false, tries: 0, menuIdx: 0, keyIdx: 0, linkedT: 0,
+  // lockstep state
+  m: 0, sim: 0, nextL: 0, inL: {}, inR: {}, hashL: {}, hashR: {}, desync: false, stallT: 0, pendingLock: null, pendingCur: null,
+
+  serverURL() { return window.NET_SERVER || 'wss://0.peerjs.com/peerjs'; },
+  rtcConfig() { return { iceServers: window.NET_ICE || [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] }; },
+
+  // ---------------- relay (signalling) ----------------
+  openRelay(id, onOpen) {
+    const tok = Math.random().toString(36).slice(2, 12);
+    let ws;
+    try { ws = new WebSocket(`${this.serverURL()}?key=peerjs&id=${encodeURIComponent(id)}&token=${tok}&version=1.5.4`); }
+    catch (e) { this.fail("COULDN'T REACH THE LINK SERVER"); return; }
+    this.ws = ws;
+    ws.onmessage = ev => {
+      let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      if (msg.type === 'OPEN') onOpen();
+      else if (msg.type === 'ID-TAKEN') { this.closeRelay(); if (this.side === 0 && this.tries++ < 6) this.host(true); else this.fail('LINK SERVER BUSY - TRY AGAIN'); }
+      else if (msg.type === 'ERROR') this.fail('LINK SERVER ERROR');
+      else if (msg.type === 'EXPIRE') { if (this.side === 1 && !this.connected) this.fail('NO GAME FOUND WITH THAT CODE'); }
+      else if (msg.type === 'OFFER' && this.side === 0) this.gotOffer(msg.src, msg.payload);
+      else if (msg.type === 'ANSWER' && this.side === 1) this.gotAnswer(msg.payload);
+    };
+    ws.onerror = () => { if (!this.connected && this.phase !== 'error') this.fail("COULDN'T REACH THE LINK SERVER"); };
+    ws.onclose = () => { clearInterval(this.hb); };
+    clearInterval(this.hb);
+    this.hb = setInterval(() => { try { ws.readyState === 1 && ws.send(JSON.stringify({ type: 'HEARTBEAT' })); } catch (e) { } }, 5000);
+  },
+  relaySend(type, dst, payload) { try { this.ws.send(JSON.stringify({ type, dst, payload })); } catch (e) { } },
+  closeRelay() { clearInterval(this.hb); if (this.ws) { try { this.ws.onclose = this.ws.onerror = this.ws.onmessage = null; this.ws.close(); } catch (e) { } } this.ws = null; },
+
+  // wait (briefly) for the connection candidates so the whole offer/answer goes in one message
+  gathered(pc) {
+    return new Promise(res => {
+      if (pc.iceGatheringState === 'complete') return res();
+      const t = setTimeout(res, 2500);
+      pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
+    });
+  },
+
+  // ---------------- host / join ----------------
+  host(retry) {
+    this.reset(); this.side = 0; if (!retry) this.tries = 0;
+    this.code = String(1000 + Math.floor(Math.random() * 9000));
+    this.phase = 'opening';
+    this.openRelay(NET_PREFIX + this.code, () => { this.phase = 'waiting'; });
+  },
+  async gotOffer(src, payload) {
+    if (this.pc || !payload || !payload.sdp) return;            // already busy with someone
+    if (payload.v !== NET_VER) { this.relaySend('ANSWER', src, { refused: 'version' }); return; }
+    this.phase = 'connecting';
+    try {
+      const pc = this.pc = new RTCPeerConnection(this.rtcConfig());
+      this.watchPC(pc);
+      pc.ondatachannel = e => this.setupDC(e.channel);
+      await pc.setRemoteDescription(payload.sdp);
+      await pc.setLocalDescription(await pc.createAnswer());
+      await this.gathered(pc);
+      this.relaySend('ANSWER', src, { sdp: { type: 'answer', sdp: pc.localDescription.sdp }, v: NET_VER });
+      this.armTimeout(15000, "COULDN'T CONNECT THE PHONES");
+    } catch (e) { this.fail("COULDN'T CONNECT THE PHONES"); }
+  },
+  join(code) {
+    this.reset(); this.side = 1; this.code = code; this.phase = 'connecting';
+    const me = NET_PREFIX + 'g' + Math.random().toString(36).slice(2, 10);
+    this.openRelay(me, async () => {
+      try {
+        const pc = this.pc = new RTCPeerConnection(this.rtcConfig());
+        this.watchPC(pc);
+        this.setupDC(pc.createDataChannel('aa', { ordered: true }));
+        await pc.setLocalDescription(await pc.createOffer());
+        await this.gathered(pc);
+        this.relaySend('OFFER', NET_PREFIX + code, { sdp: { type: 'offer', sdp: pc.localDescription.sdp }, v: NET_VER, type: 'data', connectionId: 'dc_' + Math.random().toString(36).slice(2, 10) });
+        this.armTimeout(15000, 'NO GAME FOUND WITH THAT CODE');
+      } catch (e) { this.fail("COULDN'T CONNECT THE PHONES"); }
+    });
+  },
+  async gotAnswer(payload) {
+    if (!payload) return;
+    if (payload.refused) { this.fail('THE OTHER PHONE HAS A DIFFERENT VERSION'); return; }
+    try { await this.pc.setRemoteDescription(payload.sdp); } catch (e) { this.fail("COULDN'T CONNECT THE PHONES"); }
+  },
+  armTimeout(ms, msg) { clearTimeout(this.timer); this.timer = setTimeout(() => { if (!this.connected) this.fail(msg); }, ms); },
+  watchPC(pc) {
+    pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(pc.connectionState)) this.lost(); };
+    pc.oniceconnectionstatechange = () => { if (pc.iceConnectionState === 'failed') this.lost(); };
+  },
+  setupDC(dc) {
+    this.dc = dc;
+    dc.onopen = () => {
+      clearTimeout(this.timer);
+      this.connected = true; this.phase = 'linked'; this.linkedT = 0; this.m = 0;
+      this.closeRelay();
+      this.send({ t: 'hello', v: NET_VER, lenient: !!usingTouch });
+      // heartbeat: if the other phone goes quiet (closed, locked, out of range) for 10 s, call the link lost
+      this.lastRx = performance.now(); clearInterval(this.alive);
+      this.alive = setInterval(() => {
+        if (!this.connected) { clearInterval(this.alive); return; }
+        this.send({ t: 'p' });
+        if (performance.now() - this.lastRx > 10000) this.lost();
+      }, 1000);
+      Snd.play('confirm'); Voice.say('fight');
+    };
+    dc.onmessage = e => { this.lastRx = performance.now(); let m; try { m = JSON.parse(e.data); } catch (er) { return; } this.onMsg(m); };
+    dc.onclose = () => this.lost();
+  },
+  send(o) { if (this.dc && this.dc.readyState === 'open') { try { this.dc.send(JSON.stringify(o)); } catch (e) { } } },
+
+  onMsg(o) {
+    switch (o.t) {
+      case 'hello': this.remoteLenient = !!o.lenient; break;
+      case 'i': { const b = this.inR[o.m] || (this.inR[o.m] = {}); b[o.f] = o.b; break; }
+      case 'h': this.hashR[o.f + ':' + o.m] = o.h; this.checkHash(o.m, o.f); break;
+      case 'cur': if (o.m === this.m + 1) { this.pendingCur = o.c; Flow.netCursor(o.c); } break;
+      case 'lock': if (o.m === this.m + 1) { this.pendingLock = o; Flow.netLock(o); } break;
+      case 'bye': this.lost(true); break;
+    }
+  },
+
+  fail(msg) { this.err = msg; this.phase = 'error'; this.teardown(); Snd.play('block'); },
+  lost(bye) {
+    if (!this.connected) return;
+    this.connected = false; this.teardown();
+    Flow.netLost(bye ? 'THE OTHER PLAYER LEFT' : 'THE OTHER PHONE STOPPED ANSWERING');
+  },
+  teardown() {
+    clearTimeout(this.timer); clearInterval(this.alive); this.closeRelay();
+    if (this.dc) { try { this.dc.onclose = null; this.dc.close(); } catch (e) { } }
+    if (this.pc) { try { this.pc.onconnectionstatechange = this.pc.oniceconnectionstatechange = null; this.pc.close(); } catch (e) { } }
+    this.dc = this.pc = null;
+  },
+  reset() { this.teardown(); this.connected = false; this.err = ''; this.desync = false; this.pendingLock = this.pendingCur = null; this.inR = {}; },
+  leave() { if (this.connected) this.send({ t: 'bye' }); this.connected = false; this.teardown(); this.phase = 'menu'; },
+
+  // ---------------- lockstep ----------------
+  enc(raw) { let b = 0; NET_BITS.forEach((k, i) => { if (raw[k]) b |= 1 << i; }); return b; },
+  dec(b) { const o = {}; NET_BITS.forEach((k, i) => { if (b & (1 << i)) o[k] = true; }); return o; },
+  beginMatch() {
+    this.m++; this.sim = 0; this.nextL = NET_DELAY; this.inL = {}; this.hashL = {}; this.hashR = {}; this.desync = false; this.stallT = 0;
+    for (const k in this.inR) if (+k < this.m) delete this.inR[k];
+    const R = this.inR[this.m] || (this.inR[this.m] = {});
+    for (let f = 0; f < NET_DELAY; f++) { this.inL[f] = 0; R[f] = 0; }
+    this.pendingLock = this.pendingCur = null;
+    TICK = 0;
+  },
+  pump() {   // record + send our own presses up to NET_DELAY frames ahead
+    const raw = PORTS[1].cur || {};
+    while (this.nextL <= this.sim + NET_DELAY) {
+      const b = this.enc(raw); this.inL[this.nextL] = b;
+      this.send({ t: 'i', m: this.m, f: this.nextL, b });
+      this.nextL++;
+    }
+  },
+  ready() { const R = this.inR[this.m]; return !!R && R[this.sim] !== undefined; },
+  input(side) { return this.dec(side === this.side ? this.inL[this.sim] : this.inR[this.m][this.sim]); },
+  afterStep() {
+    if (this.sim % 30 === 0) {
+      const h = this.hash(); this.hashL[this.sim] = h;
+      this.send({ t: 'h', m: this.m, f: this.sim, h }); this.checkHash(this.m, this.sim);
+    }
+    const old = this.sim - 240; delete this.inL[old]; if (this.inR[this.m]) delete this.inR[this.m][old];
+    this.sim++;
+  },
+  hash() {
+    let s = Game.phase + '|' + Game.round + '|' + Game.timer + '|' + Game.projs.length;
+    for (const f of Game.f) s += `|${f.x.toFixed(3)},${f.y.toFixed(3)},${f.hp},${f.meter | 0},${f.state},${f.wins}`;
+    let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  },
+  checkHash(m, f) {
+    if (m !== this.m) return;
+    const a = this.hashL[f], b = this.hashR[f + ':' + m];
+    if (a !== undefined && b !== undefined && a !== b && !this.desync) { this.desync = true; console.warn('LINK desync at frame', f); }
+  },
+};
+
+// ---------------- Flow: the LINK BATTLE screens ----------------
+Flow.netMenu = ['HOST A GAME', 'JOIN A GAME', 'BACK'];
+Flow.netKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'DEL', '0', 'GO'];
+Flow.netKeyRect = function (i) { const c = i % 3, r = Math.floor(i / 3), w = 40, h = 22, x0 = VW / 2 - (w * 3 + 8) / 2; return { x: x0 + c * (w + 4), y: 102 + r * (h + 4), w, h }; };
+Flow.netPress = function (k) {
+  if (k === 'DEL') { Net.entry = Net.entry.slice(0, -1); Snd.play('select'); }
+  else if (k === 'GO') { if (Net.entry.length === 4) { Snd.play('confirm'); Net.join(Net.entry); } else Snd.play('block'); }
+  else if (Net.entry.length < 4) { Net.entry += k; Snd.play('select'); if (Net.entry.length === 4) Net.keyIdx = 11; }
+};
+Flow.netBack = function () { Snd.play('select'); Net.leave(); this.go('mode'); this.menuIdx = 2; };
+Flow.updateLink = function (M) {
+  const N = Net;
+  if (N.phase === 'menu') {
+    const n = this.netMenu.length;
+    if (M.up) { N.menuIdx = (N.menuIdx + n - 1) % n; Snd.play('select'); }
+    if (M.down) { N.menuIdx = (N.menuIdx + 1) % n; Snd.play('select'); }
+    if (M.back) return this.netBack();
+    if (M.ok) this.netPick(N.menuIdx);
+  } else if (N.phase === 'entry') {
+    if (M.left) { N.keyIdx = (N.keyIdx + 11) % 12; Snd.play('select'); }
+    if (M.right) { N.keyIdx = (N.keyIdx + 1) % 12; Snd.play('select'); }
+    if (M.up) { N.keyIdx = (N.keyIdx + 9) % 12; Snd.play('select'); }
+    if (M.down) { N.keyIdx = (N.keyIdx + 3) % 12; Snd.play('select'); }
+    if (M.ok) this.netPress(this.netKeys[N.keyIdx]);
+    if (M.back) { N.phase = 'menu'; Snd.play('select'); }
+  } else if (N.phase === 'linked') {
+    if (++N.linkedT > 90) { this.mode = 'net'; this.go('select'); }
+  } else if (N.phase === 'lost' || N.phase === 'error') {
+    if ((M.anyBtn || M.ok || M.back) && this.t > 30) { N.phase = 'menu'; this.t = 0; Snd.play('select'); }
+  } else if (M.back) this.netBack();     // opening / waiting / connecting
+};
+Flow.netPick = function (i) {
+  Snd.play('confirm');
+  if (i === 0) Net.host();
+  if (i === 1) { Net.reset(); Net.phase = 'entry'; Net.entry = ''; Net.keyIdx = 0; }
+  if (i === 2) this.netBack();
+};
+Flow.tapLink = function (x, y) {
+  const N = Net;
+  if (N.phase === 'menu') { this.netMenu.forEach((s, i) => { if (y > 96 + i * 24 - 6 && y < 96 + i * 24 + 16) { N.menuIdx = i; this.netPick(i); } }); return; }
+  if (N.phase === 'entry') {
+    for (let i = 0; i < 12; i++) { const R = this.netKeyRect(i); if (x >= R.x && x <= R.x + R.w && y >= R.y && y <= R.y + R.h) { N.keyIdx = i; this.netPress(this.netKeys[i]); return; } }
+    if (y > 200) { N.phase = 'menu'; Snd.play('select'); }
+    return;
+  }
+  if (N.phase === 'lost' || N.phase === 'error') { if (this.t > 30) { N.phase = 'menu'; this.t = 0; Snd.play('select'); } return; }
+  if (N.phase !== 'linked' && y > 196) this.netBack();
+};
+Flow.drawLink = function () {
+  const c = ctx, N = Net, t = this.t;
+  this.bg('#04101e', '#20083a', t * 0.004);
+  text('LINK BATTLE', VW / 2, 22, { scale: 3, pal: 'blue', align: 'center', italic: true });
+  const C = (s, y, pal, scale) => text(s, VW / 2, y, { pal: pal || 'plainWhite', align: 'center', scale: scale || 1 });
+  const blink = (t >> 4) % 2;
+  if (N.phase === 'menu') {
+    this.netMenu.forEach((s, i) => {
+      const on = i === N.menuIdx, y = 96 + i * 24;
+      if (on) { c.fillStyle = 'rgba(60,160,255,.3)'; c.fillRect(80, y - 5, VW - 160, 19); drawStar(c, 90, y + 4, 4, '#ffe23a'); }
+      text(s, VW / 2, y, { scale: 2, pal: on ? 'gold' : 'silver', align: 'center' });
+    });
+    C('2 PHONES ON THE SAME WI-FI', 64, 'plainCyan');
+    C('ONE PHONE HOSTS, THE OTHER JOINS WITH THE CODE', 186, 'plainGrey');
+  } else if (N.phase === 'opening') {
+    C('OPENING A GAME' + '...'.slice(0, (t >> 4) % 4), 100, 'plainYellow');
+    C('BACK', 204, 'plainGrey');
+  } else if (N.phase === 'waiting') {
+    C('YOUR GAME CODE', 62, 'plainCyan');
+    text(N.code.split('').join(' '), VW / 2, 80, { scale: 4, pal: 'gold', align: 'center' });
+    C('TYPE THIS CODE ON THE OTHER PHONE', 134, 'plainWhite');
+    if (blink) C('WAITING FOR PLAYER 2...', 154, 'plainYellow');
+    C('YOU WILL BE 1P', 172, 'plainRed');
+    C('BACK', 204, 'plainGrey');
+  } else if (N.phase === 'entry') {
+    C('ENTER THE CODE FROM THE HOST PHONE', 56, 'plainCyan');
+    for (let i = 0; i < 4; i++) {
+      const x = VW / 2 - 50 + i * 26, y = 70;
+      c.fillStyle = '#000'; c.fillRect(x, y, 22, 26); c.strokeStyle = i === N.entry.length && blink ? '#ffe000' : '#3080ff'; c.lineWidth = 1; c.strokeRect(x + 0.5, y + 0.5, 21, 25);
+      if (N.entry[i]) text(N.entry[i], x + 11, y + 4, { scale: 2, pal: 'gold', align: 'center' });
+    }
+    this.netKeys.forEach((k, i) => {
+      const R = this.netKeyRect(i), on = i === N.keyIdx && !usingTouch;
+      c.fillStyle = on ? '#c02020' : '#1a1830'; c.fillRect(R.x, R.y, R.w, R.h);
+      c.fillStyle = on ? '#ff6a5a' : '#3a3858'; c.fillRect(R.x, R.y, R.w, 2);
+      c.strokeStyle = '#000'; c.strokeRect(R.x + 0.5, R.y + 0.5, R.w - 1, R.h - 1);
+      const lab = k === 'GO' ? 'OK' : k;
+      text(lab, R.x + R.w / 2, R.y + (k.length > 1 ? 8 : 4), { scale: k.length > 1 ? 1 : 2, pal: k === 'GO' ? 'plainCyan' : 'plainWhite', align: 'center' });
+    });
+    C('BACK', 208, 'plainGrey');
+  } else if (N.phase === 'connecting') {
+    C('CONNECTING' + '...'.slice(0, (t >> 4) % 4), 96, 'plainYellow', 2);
+    if (N.side === 1) C('GAME ' + N.code, 124, 'plainCyan');
+    C('BACK', 204, 'plainGrey');
+  } else if (N.phase === 'linked') {
+    text('LINKED!', VW / 2, 84, { scale: 4, pal: 'gold', align: 'center' });
+    C(N.side === 0 ? 'YOU ARE 1P  (LEFT SIDE)' : 'YOU ARE 2P  (RIGHT SIDE)', 140, N.side === 0 ? 'plainRed' : 'plainCyan');
+  } else if (N.phase === 'error' || N.phase === 'lost') {
+    text(N.phase === 'lost' ? 'LINK LOST' : 'NO LINK', VW / 2, 70, { scale: 3, pal: 'red', align: 'center' });
+    C(N.err, 112, 'plainWhite');
+    C('CHECK BOTH PHONES ARE ON THE SAME WI-FI', 136, 'plainGrey');
+    C('OR TURN ON ONE PHONE\'S HOTSPOT AND JOIN IT', 148, 'plainGrey');
+    if (t > 30 && blink) C('TAP TO GO BACK', 180, 'plainYellow');
+  }
+};
+Flow.netLost = function (msg) {
+  Net.err = msg; Net.phase = 'lost'; Music.stop(); Snd.play('ko', 0.5);
+  this.mode = 'net'; this.paused = false; this.state = 'link'; this.t = 0;
+};
+// the other phone moved its cursor / locked its fighter in
+Flow.netCursor = function (c) {
+  if (this.state !== 'select' || this.mode !== 'net') return;
+  const s = this.sel.p[1 - Net.side]; if (!s.done && s.cur !== c) { s.cur = c; Snd.play('select'); }
+};
+Flow.netLock = function (o) {
+  if (this.state !== 'select' || this.mode !== 'net') return;
+  const i = 1 - Net.side, s = this.sel.p[i];
+  if (s.done) return;
+  s.cur = o.c; this._remoteLock = true; this.lockIn(i, o.pal); this._remoteLock = false;
+};
+// keyboard digits for the code on computers
+window.addEventListener('keydown', e => {
+  if (Flow.state !== 'link' || Net.phase !== 'entry') return;
+  if (/^Digit[0-9]$|^Numpad[0-9]$/.test(e.code)) Flow.netPress(e.code.slice(-1));
+  else if (e.code === 'Backspace') Flow.netPress('DEL');
+});
+// closing the page / leaving the browser tells the other phone straight away
+window.addEventListener('pagehide', () => { if (Net.connected) Net.send({ t: 'bye' }); });
 
 // ---------- Display: WebGL CRT post-process (with 2D fallback), touch controls, main loop ----------
 const screenCv = document.getElementById('screen');
@@ -4418,7 +4780,7 @@ document.getElementById('iostip').addEventListener('click', e => e.currentTarget
 if (IS_STANDALONE) document.getElementById('bFs').style.display = 'none';
 // iOS only grants audio on the finger LIFTING, not on touch-down
 for (const ev of ['touchend', 'pointerup', 'click']) document.addEventListener(ev, () => Snd.unlock(), { capture: true, passive: true });
-document.addEventListener('visibilitychange', () => { if (document.hidden && Flow.state === 'fight' && Game.mode !== 'demo' && !Flow.paused) Flow.paused = true; lastT = performance.now(); acc = 0; });
+document.addEventListener('visibilitychange', () => { if (document.hidden && Flow.state === 'fight' && Game.mode !== 'demo' && Flow.mode !== 'net' && !Flow.paused) Flow.paused = true; lastT = performance.now(); acc = 0; });
 function relayout() { resize(); TC.layout = touchLayout(); }
 window.addEventListener('resize', relayout);
 // iOS settles the new size some time after rotating: check again a few times
