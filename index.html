@@ -53,6 +53,9 @@ body{font-family:monospace;color:#fff}
 #bar button.on i{background:radial-gradient(ellipse at 50% 40%,#f4ffe8,#58f070 45%,#109030);box-shadow:0 0 0 1px #000,0 0 7px #40ff70}
 #bar button em{font:700 7px/1 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-style:normal;color:#9a96a0;letter-spacing:.4px}
 #bar button.on em{color:#c8f4c0}
+#iostip{position:fixed;z-index:9;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);width:min(86vw,420px);padding:16px 18px;border-radius:8px;background:linear-gradient(#2c2a34,#141318);border:2px solid #e8b020;box-shadow:0 6px 30px #000;color:#eee;font:600 14px/1.45 system-ui,-apple-system,sans-serif;opacity:0;pointer-events:none;transition:.2s}
+#iostip.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+#iostip b{display:block;color:#ffd44a;font-size:16px;margin-bottom:6px}#iostip u{text-decoration:none;color:#7fe0ff}#iostip i{display:block;margin-top:8px;font-size:11px;color:#999;font-style:normal}
 #boot{position:fixed;inset:0;z-index:8;background:#000;color:#ffd44a;display:flex;flex-direction:column;align-items:center;justify-content:center;font:bold 22px monospace;letter-spacing:3px;animation:bl 1s steps(2) infinite}
 #boot span{font-size:12px;color:#ccc;margin-top:10px;letter-spacing:2px}
 @keyframes bl{50%{opacity:.25}}
@@ -61,6 +64,7 @@ body{font-family:monospace;color:#fff}
 </style>
 </head>
 <body>
+<div id="iostip"><b>Fullscreen on iPhone</b>Tap the <u>Share</u> button in Safari, choose <u>Add to Home Screen</u>, then open Anarchy Arena from its icon. It runs fullscreen with no browser bars.<i>tap to close</i></div>
 <div id="boot">NOW LOADING<span>PLEASE WAIT</span></div>
 <div id="cab"><canvas id="screen" width="1152" height="672" class="crt"></canvas></div>
 <canvas id="touch"></canvas>
@@ -143,6 +147,8 @@ const BTN = ['lp', 'hp', 'lk', 'hk'];
 const PAD_FIELDS = ['up', 'down', 'left', 'right', 'lp', 'hp', 'lk', 'hk', 'start', 'coin'];
 const TOUCH = { up: 0, down: 0, left: 0, right: 0, lp: 0, hp: 0, lk: 0, hk: 0, start: 0, coin: 0 };
 let usingTouch = false;
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_STANDALONE = navigator.standalone === true || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
 // rumble on phones: only for hits that involve a human player on a touch screen
 function buzz(f, ms) {
   if (!usingTouch || !OPT.vibe || !navigator.vibrate) return;
@@ -385,6 +391,21 @@ function textWidth(str, scale = 1) { if (scale < 2) return String(str).length * 
 const Snd = {
   ac: null, master: null, music: null, sfx: null, noise: null, ok: false,
   unlock() {
+    // iPhone: play through the silent switch like a game app, not like a web page
+    if (!this.sessionSet) {
+      this.sessionSet = true;
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
+      if (IS_IOS && !navigator.audioSession) {
+        try {   // older iOS: a silent looping <audio> switches the session to "playback"
+          const sr = 8000, n = 800, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+          w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+          v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+          const el = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/wav' })));
+          el.loop = true; el.setAttribute('playsinline', ''); el.volume = 0.01; el.play().catch(() => { this.sessionSet = false; });
+          this.keepAlive = el;
+        } catch (e) { }
+      }
+    }
     if (!this.ac) {
       try {
         const AC = window.AudioContext || window.webkitAudioContext;
@@ -410,7 +431,7 @@ const Snd = {
         this.ok = true;
       } catch (e) { this.ok = false; }
     }
-    if (this.ac && this.ac.state === 'suspended') this.ac.resume().catch(() => { });
+    if (this.ac && this.ac.state !== 'running') this.ac.resume().catch(() => { });   // 'suspended', or 'interrupted' after a call / app switch on iOS
     if (this.ok && typeof Voice !== 'undefined') Voice.load();
   },
   setOn(on) { if (this.master) this.master.gain.setTargetAtTime(on ? 0.9 : 0, this.ac.currentTime, 0.02); },
@@ -4354,14 +4375,27 @@ document.getElementById('bSnd').addEventListener('click', e => { toggleSound(); 
 document.getElementById('bScan').addEventListener('click', e => { toggleScan(); e.currentTarget.blur(); });
 document.getElementById('bFs').addEventListener('click', async e => {
   e.currentTarget.blur(); Snd.unlock();
+  const de = document.documentElement, req = de.requestFullscreen || de.webkitRequestFullscreen;
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!req) { showIosTip(); return; }          // iPhone Safari: pages can't go fullscreen, only home-screen apps
   try {
-    if (document.fullscreenElement) await document.exitFullscreen();
-    else { await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => { }); }
-  } catch (er) { }
+    if (fsEl) await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else { await req.call(de, { navigationUI: 'hide' }); if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => { }); }
+  } catch (er) { if (IS_IOS) showIosTip(); }
 });
+function showIosTip() {
+  const t = document.getElementById('iostip'); if (!t) return;
+  t.classList.add('show'); clearTimeout(showIosTip.h); showIosTip.h = setTimeout(() => t.classList.remove('show'), 9000);
+}
+document.getElementById('iostip').addEventListener('click', e => e.currentTarget.classList.remove('show'));
+// launched from the home screen it's already fullscreen: the button has nothing to do
+if (IS_STANDALONE) document.getElementById('bFs').style.display = 'none';
+// iOS only grants audio on the finger LIFTING, not on touch-down
+for (const ev of ['touchend', 'pointerup', 'click']) document.addEventListener(ev, () => Snd.unlock(), { capture: true, passive: true });
 document.addEventListener('visibilitychange', () => { if (document.hidden && Flow.state === 'fight' && Game.mode !== 'demo' && !Flow.paused) Flow.paused = true; lastT = performance.now(); acc = 0; });
 window.addEventListener('resize', () => { resize(); TC.layout = touchLayout(); });
 document.addEventListener('fullscreenchange', () => { syncButtons(); });
+document.addEventListener('webkitfullscreenchange', () => { syncButtons(); });
 if (matchMedia('(pointer:coarse)').matches) { usingTouch = true; touchCv.classList.add('on'); }
 
 initGL(); resize(); syncButtons(); Stage.build();
